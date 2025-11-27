@@ -24,7 +24,7 @@ func DefaultConfig() *Config {
 		OrgDir:      filepath.Join(home, "org-roam"),
 		ObsidianDir: filepath.Join(home, "Documents", "obsidian-vault"),
 		LogFile:     "/tmp/notebridge.log",
-		StateFile:   filepath.Join(home, ".notebridge", "state.json"),
+		StateFile:   filepath.Join(home, ".config", "notebridge", "state.json"),
 		Interval:    30 * time.Second,
 	}
 }
@@ -33,10 +33,10 @@ func DefaultConfig() *Config {
 // Can be overridden for testing
 var ConfigPath = func() string {
 	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".notebridge", "config.json")
+	return filepath.Join(home, ".config", "notebridge", "config.json")
 }
 
-// Load reads configuration from ~/.notebridge/config.json
+// Load reads configuration from ~/.config/notebridge/config.json
 func Load() (*Config, error) {
 	configPath := ConfigPath()
 	data, err := os.ReadFile(configPath)
@@ -88,7 +88,7 @@ func Load() (*Config, error) {
 	return cfg, nil
 }
 
-// Save writes configuration to ~/.notebridge/config.json
+// Save writes configuration to ~/.config/notebridge/config.json
 func (c *Config) Save() error {
 	configPath := ConfigPath()
 	configDir := filepath.Dir(configPath)

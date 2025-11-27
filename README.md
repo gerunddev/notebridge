@@ -64,21 +64,21 @@ notebridge status
 
 ## Configuration
 
-**Location**: `~/.notebridge/config.json`
+**Location**: `~/.config/notebridge/config.json`
 
 ```json
 {
   "org_dir": "/path/to/org-roam",
   "obsidian_dir": "/path/to/obsidian/vault",
   "log_file": "/tmp/notebridge.log",
-  "state_file": "~/.notebridge/state.json",
+  "state_file": "~/.config/notebridge/state.json",
   "interval": "30s"
 }
 ```
 
 ## State Tracking
 
-**Location**: `~/.notebridge/state.json`
+**Location**: `~/.config/notebridge/state.json`
 
 ### Strategy: mtime + content hash (hybrid)
 
@@ -267,7 +267,7 @@ This project is in early development. Core features are being actively built.
 ### Roadmap
 
 **Phase 1: Core Sync**
-- [x] Configuration management (`~/.notebridge/config.json`)
+- [x] Configuration management (`~/.config/notebridge/config.json`)
 - [x] State tracking (mtime + SHA256 hash)
 - [x] Org-mode parser (line-by-line with library support)
 - [x] Markdown parser (line-by-line with library support)

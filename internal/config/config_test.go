@@ -229,7 +229,7 @@ func TestConfigPathsExpanded(t *testing.T) {
 		OrgDir:      "~/org-roam",
 		ObsidianDir: "~/Documents/obsidian",
 		LogFile:     "~/notebridge.log",
-		StateFile:   "~/.notebridge/state.json",
+		StateFile:   "~/.config/notebridge/state.json",
 		Interval:    30 * time.Second,
 	}
 

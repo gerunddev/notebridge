@@ -60,8 +60,8 @@ Examples:
   notebridge status
 
 Configuration:
-  Config file: ~/.notebridge/config.json
-  State file:  ~/.notebridge/state.json
+  Config file: ~/.config/notebridge/config.json
+  State file:  ~/.config/notebridge/state.json
 
 For more information, visit: https://github.com/gerunddev/notebridge
 `
