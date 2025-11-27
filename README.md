@@ -165,6 +165,20 @@ Preserved as comments when converting:
 - Obsidian callouts (`> [!NOTE]`)
 - Org clock entries (`CLOCK:`)
 
+## Implementation
+
+notebridge uses a **hybrid annotation pattern** for conversion: custom features (org-roam IDs, wikilinks) are extracted and marked with unique placeholders, standard conversion is performed, then markers are replaced with converted features. This provides clean separation between custom org-roam/Obsidian features and standard markdown/org-mode syntax.
+
+**Libraries used**:
+- **[go-org](https://github.com/niklasfasching/go-org)**: Org-mode parsing (future enhancement)
+- **[goldmark](https://github.com/yuin/goldmark)**: Markdown parsing with frontmatter support
+- **[gopkg.in/yaml.v3](https://gopkg.in/yaml.v3)**: YAML frontmatter handling
+- **[google/uuid](https://github.com/google/uuid)**: Org-roam ID generation
+
+Current implementation uses manual line-by-line conversion with proper library-based YAML and UUID handling. The hybrid marker system is in place for bidirectional link conversion, with full test coverage validating roundtrip conversion integrity.
+
+**See**: `doc/conversion-options.md` for architectural decisions and `doc/hybrid-implementation.md` for implementation details.
+
 ## Logging
 
 **Location**: Configurable, default `/tmp/notebridge.log`
@@ -224,6 +238,8 @@ notebridge/
 - **golang.org/x/crypto**: SSH client functionality
 - Standard library: JSON, file I/O, hashing (SHA256)
 
+See **Implementation** section for conversion library details.
+
 ## Development Status
 
 This project is in early development. Core features are being actively built.
@@ -233,21 +249,21 @@ This project is in early development. Core features are being actively built.
 **Phase 1: Core Sync**
 - [ ] Configuration management (`~/.notebridge/config.json`)
 - [ ] State tracking (mtime + SHA256 hash)
-- [ ] Org-mode parser
-- [ ] Markdown parser
-- [ ] Basic org-to-markdown conversion
-- [ ] Basic markdown-to-org conversion
-- [ ] ID-to-filename mapping
+- [x] Org-mode parser (line-by-line with library support)
+- [x] Markdown parser (line-by-line with library support)
+- [x] Basic org-to-markdown conversion
+- [x] Basic markdown-to-org conversion
+- [x] ID-to-filename mapping
 - [ ] Conflict resolution (last-write-wins)
 
 **Phase 2: Format Conversion**
-- [ ] Link conversion (org-roam IDs ↔ Obsidian wikilinks)
-- [ ] Task conversion (TODO/DONE ↔ checkboxes)
-- [ ] Metadata handling (properties ↔ front matter)
-- [ ] Scheduled/Deadline dates
-- [ ] Priority levels
-- [ ] Tags and aliases
-- [ ] Code blocks and quotes
+- [x] Link conversion (org-roam IDs ↔ Obsidian wikilinks)
+- [x] Task conversion (TODO/DONE ↔ checkboxes)
+- [x] Metadata handling (properties ↔ front matter)
+- [x] Scheduled/Deadline dates
+- [x] Priority levels
+- [x] Tags and aliases
+- [x] Code blocks and quotes
 - [ ] Embeds handling
 
 **Phase 3: Daemon & CLI**
