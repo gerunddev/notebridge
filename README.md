@@ -140,6 +140,7 @@ ID-to-filename mapping maintained in state file.
 |-----|----------|
 | `:PROPERTIES:` drawer | YAML frontmatter |
 | `:ROAM_ALIASES:` | `aliases:` in frontmatter |
+| `:ROAM_REFS:` | `refs:` in frontmatter |
 | Heading tags `:tag1:tag2:` | `tags:` in frontmatter |
 
 ### Structure
@@ -150,6 +151,23 @@ ID-to-filename mapping maintained in state file.
 | `** Subheading` | `## Subheading` |
 | `#+BEGIN_SRC lang` | ``` lang ``` |
 | `#+BEGIN_QUOTE` | `>` blockquote |
+
+**Callouts** (12 types + aliases):
+
+| Org Block | Obsidian Callout |
+|-----------|------------------|
+| `#+BEGIN_NOTE` | `> [!note]` |
+| `#+BEGIN_ABSTRACT` | `> [!abstract]` (aliases: summary, tldr) |
+| `#+BEGIN_INFO` | `> [!info]` |
+| `#+BEGIN_TODO` | `> [!todo]` |
+| `#+BEGIN_TIP` | `> [!tip]` (aliases: hint, important) |
+| `#+BEGIN_SUCCESS` | `> [!success]` (aliases: check, done) |
+| `#+BEGIN_QUESTION` | `> [!question]` (aliases: help, faq) |
+| `#+BEGIN_WARNING` | `> [!warning]` (aliases: caution, attention) |
+| `#+BEGIN_FAILURE` | `> [!failure]` (aliases: fail, missing) |
+| `#+BEGIN_DANGER` | `> [!danger]` (alias: error) |
+| `#+BEGIN_BUG` | `> [!bug]` |
+| `#+BEGIN_EXAMPLE` | `> [!example]` |
 
 ### Embeds
 
@@ -260,10 +278,12 @@ This project is in early development. Core features are being actively built.
 - [x] Link conversion (org-roam IDs ↔ Obsidian wikilinks)
 - [x] Task conversion (TODO/DONE ↔ checkboxes)
 - [x] Metadata handling (properties ↔ front matter)
+- [x] ROAM_REFS property (URLs, citation keys)
 - [x] Scheduled/Deadline dates
 - [x] Priority levels
 - [x] Tags and aliases
 - [x] Code blocks and quotes
+- [x] Callouts (Obsidian) ↔ Special blocks (Org)
 - [ ] Embeds handling
 
 **Phase 3: Daemon & CLI**

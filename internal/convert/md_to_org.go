@@ -25,7 +25,9 @@ func MarkdownToOrg(mdContent string, idMap map[string]string) (string, error) {
 
 	inCodeBlock := false
 	inQuoteBlock := false
+	inCallout := false
 	codeBlockLang := ""
+	calloutType := ""
 
 	for i := 0; i < len(bodyLines); i++ {
 		line := bodyLines[i]
@@ -57,25 +59,61 @@ func MarkdownToOrg(mdContent string, idMap map[string]string) (string, error) {
 			continue
 		}
 
-		// Handle blockquotes
+		// Handle Obsidian callouts and blockquotes
 		if strings.HasPrefix(trimmed, ">") {
-			if !inQuoteBlock {
-				org.WriteString("#+BEGIN_QUOTE\n")
-				inQuoteBlock = true
-			}
-			// Remove the > and leading space
 			quoteContent := strings.TrimSpace(strings.TrimPrefix(trimmed, ">"))
-			org.WriteString(quoteContent + "\n")
-			// Check if next line is also a quote
-			if i+1 < len(bodyLines) {
-				nextTrimmed := strings.TrimSpace(bodyLines[i+1])
-				if !strings.HasPrefix(nextTrimmed, ">") {
+
+			// Check if this is a callout: > [!type]
+			if strings.HasPrefix(quoteContent, "[!") {
+				// Extract callout type
+				endIdx := strings.Index(quoteContent, "]")
+				if endIdx > 0 {
+					calloutType = strings.ToUpper(quoteContent[2:endIdx])
+					inCallout = true
+					org.WriteString("#+BEGIN_" + calloutType + "\n")
+
+					// Check if there's content after the callout marker
+					remaining := strings.TrimSpace(quoteContent[endIdx+1:])
+					if remaining != "" {
+						org.WriteString(remaining + "\n")
+					}
+					continue
+				}
+			}
+
+			// Regular blockquote or callout content
+			if inCallout {
+				org.WriteString(quoteContent + "\n")
+				// Check if next line is also a quote
+				if i+1 < len(bodyLines) {
+					nextTrimmed := strings.TrimSpace(bodyLines[i+1])
+					if !strings.HasPrefix(nextTrimmed, ">") {
+						org.WriteString("#+END_" + calloutType + "\n")
+						inCallout = false
+						calloutType = ""
+					}
+				} else {
+					org.WriteString("#+END_" + calloutType + "\n")
+					inCallout = false
+					calloutType = ""
+				}
+			} else {
+				if !inQuoteBlock {
+					org.WriteString("#+BEGIN_QUOTE\n")
+					inQuoteBlock = true
+				}
+				org.WriteString(quoteContent + "\n")
+				// Check if next line is also a quote
+				if i+1 < len(bodyLines) {
+					nextTrimmed := strings.TrimSpace(bodyLines[i+1])
+					if !strings.HasPrefix(nextTrimmed, ">") {
+						org.WriteString("#+END_QUOTE\n")
+						inQuoteBlock = false
+					}
+				} else {
 					org.WriteString("#+END_QUOTE\n")
 					inQuoteBlock = false
 				}
-			} else {
-				org.WriteString("#+END_QUOTE\n")
-				inQuoteBlock = false
 			}
 			continue
 		}
@@ -205,6 +243,7 @@ func extractYAMLFromLines(lines []string) (string, []string) {
 		Title   string   `yaml:"title"`
 		Aliases []string `yaml:"aliases"`
 		Tags    []string `yaml:"tags"`
+		Refs    []string `yaml:"refs"`
 	}
 
 	if err := yaml.Unmarshal([]byte(yamlContent), &frontMatter); err != nil {
@@ -223,7 +262,7 @@ func extractYAMLFromLines(lines []string) (string, []string) {
 	}
 
 	// Build properties drawer
-	if frontMatter.ID != "" || len(frontMatter.Aliases) > 0 {
+	if frontMatter.ID != "" || len(frontMatter.Aliases) > 0 || len(frontMatter.Refs) > 0 {
 		properties.WriteString(":PROPERTIES:\n")
 		if frontMatter.ID != "" {
 			properties.WriteString(":ID: " + frontMatter.ID + "\n")
@@ -237,6 +276,10 @@ func extractYAMLFromLines(lines []string) (string, []string) {
 				aliasStr += fmt.Sprintf(`"%s"`, alias)
 			}
 			properties.WriteString(":ROAM_ALIASES: " + aliasStr + "\n")
+		}
+		if len(frontMatter.Refs) > 0 {
+			refStr := strings.Join(frontMatter.Refs, " ")
+			properties.WriteString(":ROAM_REFS: " + refStr + "\n")
 		}
 		properties.WriteString(":END:\n")
 	}

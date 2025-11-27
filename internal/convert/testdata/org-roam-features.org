@@ -1,0 +1,110 @@
+:PROPERTIES:
+:ID: abc12345-6789-def0-1234-56789abcdef0
+:ROAM_ALIASES: "Org-Roam Test"
+:ROAM_REFS: https://example.com/article cite:smith2024
+:END:
+#+title: Org-Roam Features Test
+#+filetags: :org-roam:features:
+
+* Org-Roam Specific Features
+
+This file tests org-roam-specific features.
+
+* ROAM_REFS Property
+
+The file-level ROAM_REFS property above contains:
+- A URL: https://example.com/article
+- A citation key: cite:smith2024
+
+These unique identifiers help link external content to this note.
+
+* Headline-Level Nodes
+:PROPERTIES:
+:ID: headline-node-uuid-1234
+:ROAM_ALIASES: "Subnode"
+:END:
+
+This is a headline-level node with its own ID. In org-roam v2, headlines with an ID property become nodes themselves.
+
+** Nested Headline Node
+:PROPERTIES:
+:ID: nested-node-uuid-5678
+:END:
+
+Even nested headlines can be nodes!
+
+* ID Links
+
+Standard org-roam ID links work as expected:
+
+Link to another note: [[id:123e4567-e89b-12d3-a456-426614174000][Related Note]]
+
+Link to a headline node: [[id:headline-node-uuid-1234][Subnode]]
+
+* Org-Mode Special Blocks
+
+Org-mode special blocks convert to Obsidian callouts:
+
+#+BEGIN_NOTE
+Basic note block.
+#+END_NOTE
+
+#+BEGIN_ABSTRACT
+Abstract or summary block.
+#+END_ABSTRACT
+
+#+BEGIN_INFO
+Informational block.
+#+END_INFO
+
+#+BEGIN_TODO
+Task or to-do block.
+#+END_TODO
+
+#+BEGIN_TIP
+Helpful tip block.
+#+END_TIP
+
+#+BEGIN_SUCCESS
+Success state block.
+#+END_SUCCESS
+
+#+BEGIN_QUESTION
+Question or FAQ block.
+#+END_QUESTION
+
+#+BEGIN_WARNING
+Warning block for caution.
+#+END_WARNING
+
+#+BEGIN_FAILURE
+Failure state block.
+#+END_FAILURE
+
+#+BEGIN_DANGER
+Critical danger block.
+#+END_DANGER
+
+#+BEGIN_BUG
+Bug or issue block.
+#+END_BUG
+
+#+BEGIN_EXAMPLE
+Code example block.
+#+END_EXAMPLE
+
+All aliases supported: SUMMARY, TLDR, HINT, IMPORTANT, CHECK, DONE, HELP, FAQ, CAUTION, ATTENTION, FAIL, MISSING, ERROR.
+
+* File Links and Attachments
+
+Org-mode file links:
+
+[[file:diagram.png]]
+
+Attachment links:
+
+[[attachment:document.pdf]]
+
+* Conclusion
+
+These org-roam and org-mode features need proper conversion handling.

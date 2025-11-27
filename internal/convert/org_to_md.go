@@ -24,7 +24,9 @@ func OrgToMarkdown(orgContent string, idMap map[string]string) (string, error) {
 
 	inCodeBlock := false
 	inQuoteBlock := false
+	inSpecialBlock := false
 	codeBlockLang := ""
+	specialBlockType := ""
 
 	for i := 0; i < len(bodyLines); i++ {
 		line := bodyLines[i]
@@ -62,6 +64,43 @@ func OrgToMarkdown(orgContent string, idMap map[string]string) (string, error) {
 			continue
 		}
 		if inQuoteBlock {
+			md.WriteString("> " + trimmed + "\n")
+			continue
+		}
+
+		// Handle special blocks -> Obsidian callouts
+		// Supports all default Obsidian callout types (except quote/cite which are standard blockquotes)
+		if strings.HasPrefix(trimmed, "#+BEGIN_") {
+			blockType := strings.ToLower(strings.TrimPrefix(trimmed, "#+BEGIN_"))
+			// All supported callout types
+			// Note: "quote" and "cite" excluded as they map to standard #+BEGIN_QUOTE
+			validCallouts := map[string]bool{
+				"note": true, "abstract": true, "summary": true, "tldr": true,
+				"info": true, "todo": true, "tip": true, "hint": true, "important": true,
+				"success": true, "check": true, "done": true,
+				"question": true, "help": true, "faq": true,
+				"warning": true, "caution": true, "attention": true,
+				"failure": true, "fail": true, "missing": true,
+				"danger": true, "error": true, "bug": true,
+				"example": true,
+			}
+			if validCallouts[blockType] {
+				inSpecialBlock = true
+				specialBlockType = blockType
+				md.WriteString("> [!" + blockType + "]\n")
+				continue
+			}
+		}
+		if strings.HasPrefix(trimmed, "#+END_") {
+			blockType := strings.ToLower(strings.TrimPrefix(trimmed, "#+END_"))
+			if blockType == specialBlockType {
+				inSpecialBlock = false
+				specialBlockType = ""
+				md.WriteString("\n")
+				continue
+			}
+		}
+		if inSpecialBlock {
 			md.WriteString("> " + trimmed + "\n")
 			continue
 		}
@@ -172,6 +211,7 @@ func extractOrgPropertiesFromLines(lines []string) (string, []string) {
 	var title, id string
 	var aliases []string
 	var tags []string
+	var refs []string
 
 	for i, line := range lines {
 		trimmed := strings.TrimSpace(line)
@@ -195,6 +235,10 @@ func extractOrgPropertiesFromLines(lines []string) (string, []string) {
 				aliasStr := strings.TrimSpace(trimmed[14:])
 				// Parse "alias1" "alias2" format
 				aliases = parseOrgAliases(aliasStr)
+			} else if strings.HasPrefix(trimmed, ":ROAM_REFS:") {
+				refStr := strings.TrimSpace(trimmed[11:])
+				// Parse space-separated refs (URLs, citation keys, etc.)
+				refs = strings.Fields(refStr)
 			}
 			continue
 		}
@@ -240,6 +284,12 @@ func extractOrgPropertiesFromLines(lines []string) (string, []string) {
 		frontMatter.WriteString("tags:\n")
 		for _, tag := range tags {
 			frontMatter.WriteString("  - " + tag + "\n")
+		}
+	}
+	if len(refs) > 0 {
+		frontMatter.WriteString("refs:\n")
+		for _, ref := range refs {
+			frontMatter.WriteString("  - " + ref + "\n")
 		}
 	}
 
