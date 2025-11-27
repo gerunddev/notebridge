@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"gopkg.in/yaml.v3"
 )
 
 // MarkdownToOrg converts markdown content to org-mode
@@ -178,70 +179,42 @@ func extractYAMLFromLines(lines []string) (string, []string) {
 	var properties strings.Builder
 	var bodyLines []string
 
-	inFrontMatter := false
+	// Check for front matter delimiters
+	if len(lines) == 0 || strings.TrimSpace(lines[0]) != "---" {
+		return "", lines
+	}
+
+	// Find end of front matter
 	frontMatterEnd := -1
-	var id, title string
-	var aliases []string
-	var tags []string
-
-	for i, line := range lines {
-		trimmed := strings.TrimSpace(line)
-
-		if i == 0 && trimmed == "---" {
-			inFrontMatter = true
-			continue
-		}
-
-		if inFrontMatter && trimmed == "---" {
-			inFrontMatter = false
+	for i := 1; i < len(lines); i++ {
+		if strings.TrimSpace(lines[i]) == "---" {
 			frontMatterEnd = i
-			continue
+			break
 		}
+	}
 
-		if inFrontMatter {
-			// Parse YAML (simple key: value parsing)
-			if strings.HasPrefix(trimmed, "id: ") {
-				id = strings.TrimSpace(trimmed[4:])
-			} else if strings.HasPrefix(trimmed, "title: ") {
-				title = strings.TrimSpace(trimmed[7:])
-			} else if strings.HasPrefix(trimmed, "- ") && (len(aliases) > 0 || len(tags) > 0 || isInListContext(lines, i)) {
-				// This is a list item for aliases or tags
-				item := strings.TrimSpace(trimmed[2:])
-				// Determine if we're in aliases or tags context
-				// This is a simple heuristic - in real YAML we'd need proper parsing
-				if i > 0 && strings.Contains(lines[i-1], "aliases") {
-					aliases = append(aliases, item)
-				} else if i > 0 && strings.Contains(lines[i-1], "tags") {
-					tags = append(tags, item)
-				} else {
-					// Check previous non-empty line
-					for k := i - 1; k >= 0; k-- {
-						prev := strings.TrimSpace(lines[k])
-						if strings.HasPrefix(prev, "aliases:") {
-							aliases = append(aliases, item)
-							break
-						} else if strings.HasPrefix(prev, "tags:") {
-							tags = append(tags, item)
-							break
-						} else if prev != "" && !strings.HasPrefix(prev, "-") {
-							break
-						}
-					}
-				}
-			} else if strings.HasPrefix(trimmed, "aliases:") {
-				// Start of aliases list
-				continue
-			} else if strings.HasPrefix(trimmed, "tags:") {
-				// Start of tags list
-				continue
-			}
-			continue
-		}
+	if frontMatterEnd == -1 {
+		return "", lines
+	}
 
-		// Not in front matter, add to body
-		if i > frontMatterEnd {
-			bodyLines = append(bodyLines, line)
-		}
+	// Parse YAML front matter
+	yamlContent := strings.Join(lines[1:frontMatterEnd], "\n")
+
+	var frontMatter struct {
+		ID      string   `yaml:"id"`
+		Title   string   `yaml:"title"`
+		Aliases []string `yaml:"aliases"`
+		Tags    []string `yaml:"tags"`
+	}
+
+	if err := yaml.Unmarshal([]byte(yamlContent), &frontMatter); err != nil {
+		// If YAML parsing fails, fall back to empty
+		return "", lines
+	}
+
+	// Extract body lines (skip front matter)
+	for i := frontMatterEnd + 1; i < len(lines); i++ {
+		bodyLines = append(bodyLines, lines[i])
 	}
 
 	// Skip leading blank lines in body
@@ -250,14 +223,14 @@ func extractYAMLFromLines(lines []string) (string, []string) {
 	}
 
 	// Build properties drawer
-	if id != "" || len(aliases) > 0 {
+	if frontMatter.ID != "" || len(frontMatter.Aliases) > 0 {
 		properties.WriteString(":PROPERTIES:\n")
-		if id != "" {
-			properties.WriteString(":ID: " + id + "\n")
+		if frontMatter.ID != "" {
+			properties.WriteString(":ID: " + frontMatter.ID + "\n")
 		}
-		if len(aliases) > 0 {
+		if len(frontMatter.Aliases) > 0 {
 			aliasStr := ""
-			for i, alias := range aliases {
+			for i, alias := range frontMatter.Aliases {
 				if i > 0 {
 					aliasStr += " "
 				}
@@ -269,13 +242,13 @@ func extractYAMLFromLines(lines []string) (string, []string) {
 	}
 
 	// Add title
-	if title != "" {
-		properties.WriteString("#+title: " + title + "\n")
+	if frontMatter.Title != "" {
+		properties.WriteString("#+title: " + frontMatter.Title + "\n")
 	}
 
 	// Add tags
-	if len(tags) > 0 {
-		tagStr := ":" + strings.Join(tags, ":") + ":"
+	if len(frontMatter.Tags) > 0 {
+		tagStr := ":" + strings.Join(frontMatter.Tags, ":") + ":"
 		properties.WriteString("#+filetags: " + tagStr + "\n")
 	}
 
@@ -333,24 +306,6 @@ func convertMarkdownLinks(line string, idMap map[string]string) string {
 // isUUID checks if a string looks like a UUID
 func isUUID(s string) bool {
 	return len(s) == 36 && strings.Count(s, "-") == 4
-}
-
-// isInListContext checks if we're currently in a YAML list (aliases or tags)
-func isInListContext(lines []string, currentIndex int) bool {
-	// Look backwards for "aliases:" or "tags:"
-	for i := currentIndex - 1; i >= 0; i-- {
-		trimmed := strings.TrimSpace(lines[i])
-		if trimmed == "---" {
-			return false
-		}
-		if strings.HasPrefix(trimmed, "aliases:") || strings.HasPrefix(trimmed, "tags:") {
-			return true
-		}
-		if trimmed != "" && !strings.HasPrefix(trimmed, "-") {
-			return false
-		}
-	}
-	return false
 }
 
 // ConvertMarkdownHeader converts markdown header to org-mode
