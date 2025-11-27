@@ -3,11 +3,14 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/gerunddev/notebridge/internal/config"
+	"github.com/gerunddev/notebridge/internal/daemon"
 	"github.com/gerunddev/notebridge/internal/logger"
 	"github.com/gerunddev/notebridge/internal/state"
 	"github.com/gerunddev/notebridge/internal/sync"
@@ -24,8 +27,12 @@ func main() {
 	command := os.Args[1]
 
 	switch command {
+	case "start":
+		handleStart(os.Args[2:])
 	case "daemon":
 		handleDaemon(os.Args[2:])
+	case "stop":
+		handleStop()
 	case "sync":
 		handleSync()
 	case "status":
@@ -48,14 +55,17 @@ Usage:
   notebridge <command> [options]
 
 Commands:
-  daemon      Run background sync loop
+  start       Start daemon in background
+  daemon      Run daemon in foreground (for debugging)
+  stop        Stop the running daemon
   sync        One-shot manual sync
   status      Display sync state
   version     Show version information
   help        Show this help message
 
 Examples:
-  notebridge daemon --interval 30s
+  notebridge start --interval 30s
+  notebridge stop
   notebridge sync
   notebridge status
 
@@ -66,6 +76,88 @@ Configuration:
 For more information, visit: https://github.com/gerunddev/notebridge
 `
 	fmt.Print(usage)
+}
+
+func handleStart(args []string) {
+	successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
+	errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
+
+	// Check if already running
+	running, pid, _ := daemon.IsRunning()
+	if running {
+		fmt.Println(errorStyle.Render(fmt.Sprintf("✗ Daemon already running with PID %d", pid)))
+		os.Exit(1)
+	}
+
+	// Parse interval from args or use default
+	intervalArg := ""
+	for i, arg := range args {
+		if arg == "--interval" && i+1 < len(args) {
+			intervalArg = args[i+1]
+			break
+		}
+	}
+
+	// Build args for daemon process
+	daemonArgs := []string{"daemon"}
+	if intervalArg != "" {
+		daemonArgs = append(daemonArgs, "--interval", intervalArg)
+	}
+
+	// Start daemon in background
+	if err := daemon.Daemonize(daemonArgs); err != nil {
+		fmt.Println(errorStyle.Render("✗ Failed to start daemon: " + err.Error()))
+		os.Exit(1)
+	}
+
+	// Give it a moment to start
+	time.Sleep(500 * time.Millisecond)
+
+	// Verify it started
+	running, pid, _ = daemon.IsRunning()
+	if running {
+		fmt.Println(successStyle.Render(fmt.Sprintf("✓ Daemon started with PID %d", pid)))
+	} else {
+		fmt.Println(errorStyle.Render("✗ Daemon failed to start"))
+		os.Exit(1)
+	}
+}
+
+func handleStop() {
+	successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
+	errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
+	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
+
+	// Check if running
+	running, pid, _ := daemon.IsRunning()
+	if !running {
+		fmt.Println(dimStyle.Render("Daemon is not running"))
+		return
+	}
+
+	fmt.Printf("Stopping daemon (PID %d)...\n", pid)
+
+	// Stop the daemon
+	if err := daemon.Stop(); err != nil {
+		fmt.Println(errorStyle.Render("✗ Failed to stop daemon: " + err.Error()))
+		os.Exit(1)
+	}
+
+	// Wait for it to stop
+	for i := 0; i < 10; i++ {
+		time.Sleep(500 * time.Millisecond)
+		running, _, _ = daemon.IsRunning()
+		if !running {
+			break
+		}
+	}
+
+	if running {
+		fmt.Println(errorStyle.Render("✗ Daemon did not stop gracefully"))
+		os.Exit(1)
+	}
+
+	fmt.Println(successStyle.Render("✓ Daemon stopped"))
 }
 
 func handleDaemon(args []string) {
@@ -81,8 +173,6 @@ func handleDaemon(args []string) {
 			}
 		}
 	}
-
-	fmt.Printf("Starting daemon with %v interval...\n", interval)
 
 	// Load configuration
 	cfg, err := config.Load()
@@ -103,21 +193,85 @@ func handleDaemon(args []string) {
 		os.Exit(1)
 	}
 
+	// Write PID file
+	if err := daemon.WritePID(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error writing PID file: %v\n", err)
+		os.Exit(1)
+	}
+	defer daemon.RemovePID()
+
+	// Set up structured logging
+	var log *logger.Logger
+	if cfg.LogFile != "" {
+		l, cleanup, err := logger.NewFileLogger(cfg.LogFile)
+		if err == nil {
+			defer cleanup()
+			log = l
+		} else {
+			log = logger.Discard()
+		}
+	} else {
+		log = logger.Discard()
+	}
+
+	log.Info("daemon started",
+		"pid", os.Getpid(),
+		"interval", cfg.Interval)
+
 	// Create syncer
 	syncer := sync.NewSyncer(cfg, st)
+	syncer.SetLogger(log)
+
+	// Set up signal handling for graceful shutdown
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
 	// Run sync loop
 	ticker := time.NewTicker(cfg.Interval)
 	defer ticker.Stop()
 
-	fmt.Println("Daemon started. Press Ctrl+C to stop.")
-
 	// Initial sync
-	runSync(syncer, st, cfg)
+	result, err := syncer.Sync()
+	if err != nil {
+		log.Error("initial sync failed", "error", err)
+	} else {
+		log.Info("initial sync completed",
+			"files_synced", result.FilesProcessed,
+			"errors", len(result.Errors))
+	}
 
-	// Periodic sync
-	for range ticker.C {
-		runSync(syncer, st, cfg)
+	// Save state after initial sync
+	if err := st.Save(cfg.StateFile); err != nil {
+		log.Error("failed to save state", "error", err)
+	}
+
+	// Periodic sync loop
+	for {
+		select {
+		case <-ticker.C:
+			result, err := syncer.Sync()
+			if err != nil {
+				log.Error("sync failed", "error", err)
+				continue
+			}
+
+			log.Debug("sync tick completed",
+				"files_synced", result.FilesProcessed,
+				"errors", len(result.Errors))
+
+			// Save state after each sync
+			if err := st.Save(cfg.StateFile); err != nil {
+				log.Error("failed to save state", "error", err)
+			}
+
+		case sig := <-sigChan:
+			log.Info("received signal, shutting down", "signal", sig.String())
+			// Save final state
+			if err := st.Save(cfg.StateFile); err != nil {
+				log.Error("failed to save state on shutdown", "error", err)
+			}
+			return
+		}
 	}
 }
 
@@ -337,17 +491,3 @@ func handleStatus() {
 	fmt.Printf("  %s\n", valueStyle.Render(fmt.Sprintf("%d org-roam IDs tracked", len(st.IDMap))))
 }
 
-func runSync(syncer *sync.Syncer, st *state.State, cfg *config.Config) {
-	result, err := syncer.Sync()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Sync error: %v\n", err)
-		return
-	}
-
-	fmt.Println(result.String())
-
-	// Save state
-	if err := st.Save(cfg.StateFile); err != nil {
-		fmt.Fprintf(os.Stderr, "Error saving state: %v\n", err)
-	}
-}

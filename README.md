@@ -29,9 +29,28 @@ go build -o notebridge ./cmd/notebridge
 
 ## Commands
 
+### `notebridge start`
+
+Start daemon in background.
+
+```bash
+notebridge start --interval 30s
+```
+
+**Flags**:
+- `--interval` - sync frequency (default: 30s)
+
+### `notebridge stop`
+
+Stop the running daemon.
+
+```bash
+notebridge stop
+```
+
 ### `notebridge daemon`
 
-Run background sync loop.
+Run daemon in foreground (for debugging).
 
 ```bash
 notebridge daemon --interval 30s
@@ -289,8 +308,8 @@ This project is in early development. Core features are being actively built.
 - [ ] Embeds handling
 
 **Phase 3: Daemon & CLI**
-- [ ] `daemon` command with configurable interval
-- [ ] A way to stop the sync daemon
+- [x] `daemon` command with configurable interval
+- [x] A way to stop the sync daemon
 - [x] `sync` command (one-shot)
 - [x] `status` command with TUI
 - [x] Structured logging
