@@ -1,10 +1,11 @@
 package convert
 
 import (
-	"crypto/rand"
 	"fmt"
 	"regexp"
 	"strings"
+
+	"github.com/google/uuid"
 )
 
 // MarkdownToOrg converts markdown content to org-mode
@@ -419,21 +420,5 @@ func ExtractYAMLFrontMatter(content string) (properties string, bodyContent stri
 
 // GenerateOrgID generates a new org-mode ID (UUID v4)
 func GenerateOrgID() string {
-	uuid := make([]byte, 16)
-	_, err := rand.Read(uuid)
-	if err != nil {
-		// Fallback to a deterministic UUID if random fails
-		return "00000000-0000-0000-0000-000000000000"
-	}
-
-	// Set version (4) and variant bits
-	uuid[6] = (uuid[6] & 0x0f) | 0x40 // Version 4
-	uuid[8] = (uuid[8] & 0x3f) | 0x80 // Variant is 10
-
-	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x",
-		uuid[0:4],
-		uuid[4:6],
-		uuid[6:8],
-		uuid[8:10],
-		uuid[10:16])
+	return uuid.New().String()
 }

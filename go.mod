@@ -11,6 +11,7 @@ require (
 	github.com/charmbracelet/log v0.3.1
 	github.com/charmbracelet/wish v1.3.0
 	github.com/fsnotify/fsnotify v1.7.0
+	github.com/google/uuid v1.6.0
 	github.com/pkg/sftp v1.13.6
 	golang.org/x/crypto v0.18.0
 )
