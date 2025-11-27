@@ -335,10 +335,11 @@ This project is in early development. Core features are being actively built.
   - Last sync time and files synced count
   - Live log tail display
   - Press 'q' to quit view
-- [ ] Interactive file browser (Bubbles)
+- [x] Interactive file browser (Bubbles)
   - List of tracked files with sync status
-  - File diff preview
-  - Navigate with keyboard
+  - Interactive table with all files
+  - Diff preview mode (press enter/d)
+  - Navigate with keyboard (j/k or arrows)
 
 **Phase 5: Advanced Features**
 - [ ] Configurable resolution strategy
