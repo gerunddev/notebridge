@@ -5,15 +5,18 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/gerunddev/notebridge/internal/config"
 	"github.com/gerunddev/notebridge/internal/daemon"
 	"github.com/gerunddev/notebridge/internal/logger"
 	"github.com/gerunddev/notebridge/internal/state"
 	"github.com/gerunddev/notebridge/internal/sync"
+	"github.com/gerunddev/notebridge/internal/tui"
 )
 
 const version = "0.1.0"
@@ -277,7 +280,6 @@ func handleDaemon(args []string) {
 
 func handleSync() {
 	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("212"))
-	successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
 	errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
 	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
 
@@ -298,8 +300,7 @@ func handleSync() {
 		os.Exit(1)
 	}
 
-	fmt.Printf("%s → %s\n", dimStyle.Render(cfg.OrgDir), dimStyle.Render(cfg.ObsidianDir))
-	fmt.Println()
+	fmt.Printf("%s ↔ %s\n", dimStyle.Render(cfg.OrgDir), dimStyle.Render(cfg.ObsidianDir))
 
 	// Create syncer and configure logging
 	syncer := sync.NewSyncer(cfg, st)
@@ -312,28 +313,38 @@ func handleSync() {
 			syncer.SetLogger(l)
 		}
 	}
-	result, err := syncer.Sync()
-	if err != nil {
-		fmt.Println(errorStyle.Render("✗ Sync failed: " + err.Error()))
+
+	// Initialize Bubble Tea program
+	m := tui.InitSyncModel()
+	p := tea.NewProgram(m, tea.WithInput(os.Stdin))
+
+	// Run sync in goroutine and send result to program
+	go func() {
+		startTime := time.Now()
+		result, err := syncer.Sync()
+		duration := time.Since(startTime)
+
+		var tuiResult *tui.SyncResult
+		if result != nil {
+			tuiResult = &tui.SyncResult{
+				FilesProcessed: result.FilesProcessed,
+				Errors:         result.Errors,
+				Duration:       duration,
+				Success:        err == nil,
+			}
+		}
+
+		p.Send(tui.SyncMsg{
+			Result: tuiResult,
+			Err:    err,
+		})
+	}()
+
+	// Run the program
+	if _, err := p.Run(); err != nil {
+		fmt.Println(errorStyle.Render("✗ Error: " + err.Error()))
 		os.Exit(1)
 	}
-
-	// Report results
-	if result.FilesProcessed == 0 && len(result.Errors) == 0 {
-		fmt.Println(successStyle.Render("✓ Nothing to sync"))
-	} else if len(result.Errors) == 0 {
-		fmt.Println(successStyle.Render(fmt.Sprintf("✓ Synced %d file(s)", result.FilesProcessed)))
-	} else {
-		fmt.Printf("%s, %s\n",
-			successStyle.Render(fmt.Sprintf("✓ Synced %d file(s)", result.FilesProcessed)),
-			errorStyle.Render(fmt.Sprintf("%d error(s)", len(result.Errors))))
-		for _, e := range result.Errors {
-			fmt.Printf("  %s\n", errorStyle.Render("• "+e.Error()))
-		}
-	}
-
-	duration := result.EndTime.Sub(result.StartTime)
-	fmt.Println(dimStyle.Render(fmt.Sprintf("\nCompleted in %v", duration.Round(time.Millisecond))))
 
 	// Save state
 	if err := st.Save(cfg.StateFile); err != nil {
@@ -343,151 +354,137 @@ func handleSync() {
 }
 
 func handleStatus() {
-	// Define styles
-	titleStyle := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("212"))
-
-	labelStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("241"))
-
-	valueStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("255"))
-
-	successStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("42"))
-
-	warningStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("214"))
-
-	errorStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("196"))
+	errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
 
 	// Load configuration
 	cfg, err := config.Load()
 	if err != nil {
 		fmt.Println(errorStyle.Render("✗ Configuration not found"))
-		fmt.Printf("  Run 'notebridge' to create a config at %s\n", config.ConfigPath())
-		return
+		os.Exit(1)
 	}
 
 	// Load state
 	st, err := state.Load(cfg.StateFile)
 	if err != nil {
 		fmt.Println(errorStyle.Render("✗ Error loading state: " + err.Error()))
-		return
+		os.Exit(1)
 	}
 
-	// Print header
-	fmt.Println(titleStyle.Render("NoteBridge Status"))
-	fmt.Println()
+	// Create syncer for conflict resolution
+	syncer := sync.NewSyncer(cfg, st)
 
-	// Configuration info
-	fmt.Println(labelStyle.Render("Configuration"))
-	fmt.Printf("  Org directory:      %s\n", valueStyle.Render(cfg.OrgDir))
-	fmt.Printf("  Obsidian directory: %s\n", valueStyle.Render(cfg.ObsidianDir))
-	fmt.Printf("  Sync interval:      %s\n", valueStyle.Render(cfg.Interval.String()))
-	fmt.Println()
-
-	// Scan directories
-	orgFiles, err := sync.ScanDirectory(cfg.OrgDir, ".org")
-	if err != nil {
-		fmt.Printf("  %s\n", errorStyle.Render("✗ Cannot scan org directory: "+err.Error()))
-		orgFiles = []string{}
-	}
-
-	mdFiles, err := sync.ScanDirectory(cfg.ObsidianDir, ".md")
-	if err != nil {
-		fmt.Printf("  %s\n", errorStyle.Render("✗ Cannot scan obsidian directory: "+err.Error()))
-		mdFiles = []string{}
-	}
-
-	// Count tracked files
-	trackedCount := len(st.Files)
-
-	fmt.Println(labelStyle.Render("Files"))
-	fmt.Printf("  Org files:      %s\n", valueStyle.Render(fmt.Sprintf("%d", len(orgFiles))))
-	fmt.Printf("  Markdown files: %s\n", valueStyle.Render(fmt.Sprintf("%d", len(mdFiles))))
-	fmt.Printf("  Tracked pairs:  %s\n", valueStyle.Render(fmt.Sprintf("%d", trackedCount/2)))
-	fmt.Println()
-
-	// Check for pending changes
-	var pendingOrg, pendingMd []string
-
-	for _, orgPath := range orgFiles {
-		changed, err := st.HasChanged(orgPath)
-		if err == nil && changed {
-			relPath, _ := filepath.Rel(cfg.OrgDir, orgPath)
-			pendingOrg = append(pendingOrg, relPath)
-		}
-	}
-
-	for _, mdPath := range mdFiles {
-		changed, err := st.HasChanged(mdPath)
-		if err == nil && changed {
-			relPath, _ := filepath.Rel(cfg.ObsidianDir, mdPath)
-			pendingMd = append(pendingMd, relPath)
-		}
-	}
-
-	fmt.Println(labelStyle.Render("Pending Changes"))
-	if len(pendingOrg) == 0 && len(pendingMd) == 0 {
-		fmt.Printf("  %s\n", successStyle.Render("✓ No pending changes"))
-	} else {
-		if len(pendingOrg) > 0 {
-			fmt.Printf("  %s\n", warningStyle.Render(fmt.Sprintf("● %d org file(s) changed", len(pendingOrg))))
-			for _, f := range pendingOrg {
-				if len(pendingOrg) <= 5 {
-					fmt.Printf("    - %s\n", f)
-				}
-			}
-			if len(pendingOrg) > 5 {
-				fmt.Printf("    ... and %d more\n", len(pendingOrg)-5)
+	// Create resolution function
+	resolveFunc := func(orgPath, mdPath, direction string) error {
+		err := syncer.SyncFileWithResolution(orgPath, mdPath, direction)
+		if err == nil {
+			// Save state after successful resolution
+			if saveErr := st.Save(cfg.StateFile); saveErr != nil {
+				return fmt.Errorf("sync succeeded but failed to save state: %w", saveErr)
 			}
 		}
-		if len(pendingMd) > 0 {
-			fmt.Printf("  %s\n", warningStyle.Render(fmt.Sprintf("● %d markdown file(s) changed", len(pendingMd))))
-			for _, f := range pendingMd {
-				if len(pendingMd) <= 5 {
-					fmt.Printf("    - %s\n", f)
-				}
+		return err
+	}
+
+	// Bubble Tea program (will be set after creating sendStatusData)
+	var p *tea.Program
+
+	// Function to gather and send status data
+	sendStatusData := func() {
+		// Reload state to get latest changes
+		st, err := state.Load(cfg.StateFile)
+		if err != nil {
+			p.Send(tui.StatusMsg{
+				Data: nil,
+				Err:  fmt.Errorf("error loading state: %w", err),
+			})
+			return
+		}
+
+		// Scan directories
+		orgFiles, err := sync.ScanDirectory(cfg.OrgDir, ".org")
+		if err != nil {
+			orgFiles = []string{}
+		}
+
+		mdFiles, err := sync.ScanDirectory(cfg.ObsidianDir, ".md")
+		if err != nil {
+			mdFiles = []string{}
+		}
+
+		// Count tracked files
+		trackedCount := len(st.Files)
+
+		// Check for pending changes
+		var pendingOrg, pendingMd []string
+
+		for _, orgPath := range orgFiles {
+			changed, err := st.HasChanged(orgPath)
+			if err == nil && changed {
+				relPath, _ := filepath.Rel(cfg.OrgDir, orgPath)
+				pendingOrg = append(pendingOrg, relPath)
 			}
-			if len(pendingMd) > 5 {
-				fmt.Printf("    ... and %d more\n", len(pendingMd)-5)
+		}
+
+		for _, mdPath := range mdFiles {
+			changed, err := st.HasChanged(mdPath)
+			if err == nil && changed {
+				relPath, _ := filepath.Rel(cfg.ObsidianDir, mdPath)
+				pendingMd = append(pendingMd, relPath)
 			}
 		}
-	}
-	fmt.Println()
 
-	// Check for potential conflicts (both sides changed)
-	var conflicts []string
-	for _, orgPath := range orgFiles {
-		// Get corresponding md path
-		relPath, _ := filepath.Rel(cfg.OrgDir, orgPath)
-		baseName := relPath[:len(relPath)-4] // Remove .org
-		mdPath := filepath.Join(cfg.ObsidianDir, baseName+".md")
-
-		orgChanged, _ := st.HasChanged(orgPath)
-		mdChanged, _ := st.HasChanged(mdPath)
-
-		if orgChanged && mdChanged {
-			conflicts = append(conflicts, baseName)
+		// Check for potential conflicts (both sides changed)
+		// Build sets for faster lookup
+		pendingOrgSet := make(map[string]bool)
+		for _, f := range pendingOrg {
+			baseName := strings.TrimSuffix(f, ".org")
+			pendingOrgSet[baseName] = true
 		}
-	}
 
-	fmt.Println(labelStyle.Render("Conflicts"))
-	if len(conflicts) == 0 {
-		fmt.Printf("  %s\n", successStyle.Render("✓ No conflicts"))
-	} else {
-		fmt.Printf("  %s\n", errorStyle.Render(fmt.Sprintf("✗ %d potential conflict(s)", len(conflicts))))
-		for _, f := range conflicts {
-			fmt.Printf("    - %s\n", f)
+		pendingMdSet := make(map[string]bool)
+		for _, f := range pendingMd {
+			baseName := strings.TrimSuffix(f, ".md")
+			pendingMdSet[baseName] = true
 		}
-	}
-	fmt.Println()
 
-	// ID mappings
-	fmt.Println(labelStyle.Render("ID Mappings"))
-	fmt.Printf("  %s\n", valueStyle.Render(fmt.Sprintf("%d org-roam IDs tracked", len(st.IDMap))))
+		// Find conflicts (files that appear in both pending sets)
+		var conflicts []string
+		for baseName := range pendingOrgSet {
+			if pendingMdSet[baseName] {
+				conflicts = append(conflicts, baseName)
+			}
+		}
+
+		// Send status data to UI
+		p.Send(tui.StatusMsg{
+			Data: &tui.StatusData{
+				OrgDir:       cfg.OrgDir,
+				ObsidianDir:  cfg.ObsidianDir,
+				Interval:     cfg.Interval,
+				OrgFileCount: len(orgFiles),
+				MdFileCount:  len(mdFiles),
+				TrackedPairs: trackedCount / 2,
+				PendingOrg:   pendingOrg,
+				PendingMd:    pendingMd,
+				Conflicts:    conflicts,
+				IDMapCount:   len(st.IDMap),
+				Scanning:     false,
+			},
+			Err: nil,
+		})
+	}
+
+	// Initialize Bubble Tea program with all functions
+	m := tui.InitStatusModel(cfg.OrgDir, cfg.ObsidianDir, resolveFunc, sendStatusData)
+	p = tea.NewProgram(m, tea.WithInput(os.Stdin))
+
+	// Send initial status data
+	go sendStatusData()
+
+	// Run the program
+	if _, err := p.Run(); err != nil {
+		fmt.Println(errorStyle.Render("✗ Error: " + err.Error()))
+		os.Exit(1)
+	}
 }
 

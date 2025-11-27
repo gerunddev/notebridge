@@ -380,6 +380,69 @@ func (s *Syncer) SyncFilePair(orgPath, mdPath string) (bool, error) {
 	return true, nil
 }
 
+// SyncFileWithResolution syncs a file pair with a forced resolution direction
+// direction can be "org" (use org version), "obsidian" (use md version), "last-write-wins", or "skip"
+func (s *Syncer) SyncFileWithResolution(orgPath, mdPath, direction string) error {
+	if direction == "skip" {
+		s.logger.Info("file skipped by user", "org", orgPath, "md", mdPath)
+		return nil
+	}
+
+	// Handle last-write-wins by checking modification times
+	if direction == "last-write-wins" {
+		orgInfo, err := os.Stat(orgPath)
+		if err != nil {
+			return fmt.Errorf("failed to stat org file: %w", err)
+		}
+		mdInfo, err := os.Stat(mdPath)
+		if err != nil {
+			return fmt.Errorf("failed to stat md file: %w", err)
+		}
+
+		if orgInfo.ModTime().After(mdInfo.ModTime()) {
+			direction = "org"
+		} else {
+			direction = "markdown"
+		}
+		s.logger.Info("last-write-wins resolution",
+			"org_mtime", orgInfo.ModTime(),
+			"md_mtime", mdInfo.ModTime(),
+			"winner", direction)
+	}
+
+	// Sync based on direction
+	switch direction {
+	case "org":
+		// Convert org -> md
+		if err := s.convertOrgToMd(orgPath, mdPath); err != nil {
+			s.logger.ConversionError(orgPath, mdPath, err)
+			return fmt.Errorf("failed to convert org to md: %w", err)
+		}
+		s.logger.FileSynced(filepath.Base(orgPath), filepath.Base(mdPath), "user chose org version")
+
+	case "obsidian", "markdown":
+		// Convert md -> org
+		if err := s.convertMdToOrg(mdPath, orgPath); err != nil {
+			s.logger.ConversionError(mdPath, orgPath, err)
+			return fmt.Errorf("failed to convert md to org: %w", err)
+		}
+		s.logger.FileSynced(filepath.Base(mdPath), filepath.Base(orgPath), "user chose markdown version")
+
+	default:
+		return fmt.Errorf("invalid resolution direction: %s", direction)
+	}
+
+	// Update state for both files
+	if err := s.state.Update(orgPath, mdPath); err != nil {
+		return fmt.Errorf("failed to update org state: %w", err)
+	}
+	if err := s.state.Update(mdPath, orgPath); err != nil {
+		return fmt.Errorf("failed to update md state: %w", err)
+	}
+
+	return nil
+}
+
 // convertOrgToMd converts an org file to markdown with retry and atomic write
 func (s *Syncer) convertOrgToMd(orgPath, mdPath string) error {
 	var content []byte

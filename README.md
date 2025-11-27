@@ -315,7 +315,36 @@ This project is in early development. Core features are being actively built.
 - [x] Structured logging
 - [x] Error handling and recovery
 
-**Phase 4: Advanced Features**
+**Phase 4: Enhanced TUI Experience**
+- [x] Enhanced status command with live updates (Bubble Tea + Bubbles)
+  - Live-updating display with auto-refresh
+  - Interactive table showing files with pending changes
+  - Spinner during directory scanning
+  - Keyboard navigation through file lists
+- [x] Sync progress indicator (Bubbles)
+  - Spinner during sync operation
+  - Real-time sync status updates
+  - Clean formatted output
+- [x] Interactive conflict resolution
+  - Prompt user to choose conflict resolution strategy
+  - Options: use org, use markdown, last-write-wins, skip file
+  - Conflicts shown on single line in table
+  - Auto-refresh after resolution
+- [ ] Live daemon status dashboard (Bubble Tea)
+  - Real-time dashboard with daemon uptime
+  - Last sync time and files synced count
+  - Live log tail display
+  - Press 'q' to quit view
+- [ ] Interactive file browser (Bubbles)
+  - List of tracked files with sync status
+  - File diff preview
+  - Navigate with keyboard
+
+**Phase 5: Advanced Features**
+- [ ] Configurable resolution strategy
+  - Allow daemon/sync mode to use strategies other than last-write-wins
+  - Config option for default resolution (use-org, use-markdown, prompt, last-write-wins)
+  - Per-directory or per-file resolution rules
 - [ ] `watch` - real-time file watcher mode
 - [ ] `install` - generate launchd/systemd service
 - [ ] `diff <file>` - show pending changes for a file
