@@ -295,6 +295,7 @@ This project is in early development. Core features are being actively built.
 - [ ] Selective sync (include/exclude patterns)
 - [ ] Dry-run mode
 - [ ] SSH/Remote support for syncing across machines
+- [ ] Move state from a JSON file to use [Skate](https://github.com/charmbracelet/skate)
 - [ ] Troubleshoot daemon not always stopping gracefully
 
 
