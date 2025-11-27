@@ -1,0 +1,80 @@
+:PROPERTIES:
+:ID: 550e8400-e29b-41d4-a716-446655440000
+:ROAM_ALIASES: "Test Note" "Sample"
+:END:
+#+title: My Test Note
+#+filetags: :testing:sample:org:
+
+* Introduction
+
+This is a test note for notebridge conversion.
+
+* Tasks and Projects
+
+** TODO Write comprehensive tests
+SCHEDULED: <2024-01-15>
+
+This task needs to be completed.
+
+** DONE Set up project structure
+CLOSED: [2024-01-10]
+
+This task is already done.
+
+** TODO [#A] High priority task
+DEADLINE: <2024-01-20>
+
+This is urgent!
+
+** TODO [#B] Medium priority task
+
+Regular priority.
+
+* Links and References
+
+Here's a link to another note: [[id:123e4567-e89b-12d3-a456-426614174000][Related Note]]
+
+And here's a simple ID link: [[id:987fcdeb-51a2-43f7-8123-456789abcdef]]
+
+* Code Examples
+
+Here's some Go code:
+
+#+BEGIN_SRC go
+package main
+
+func hello() {
+    println("Hello, World!")
+}
+#+END_SRC
+
+And some Python:
+
+#+BEGIN_SRC python
+def greet(name):
+    print(f"Hello, {name}!")
+#+END_SRC
+
+* Quotes and Citations
+
+Someone once said:
+
+#+BEGIN_QUOTE
+Testing is doubting.
+#+END_QUOTE
+
+* Lists
+
+Unordered list:
+- First item
+- Second item
+- Third item
+
+Ordered list:
+1. Step one
+2. Step two
+3. Step three
+
+* Conclusion
+
+This covers the main features we need to convert.
