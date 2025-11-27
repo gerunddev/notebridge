@@ -383,6 +383,7 @@ This project is in early development. Core features are being actively built.
 - [ ] Selective sync (include/exclude patterns)
 - [ ] Dry-run mode
 - [ ] SSH/Remote support for syncing across machines
+- [ ] Troubleshoot daemon not always stopping gracefully
 
 ## Future Considerations
 
