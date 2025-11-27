@@ -1,6 +1,8 @@
-# notebridge
+# NoteBridge
 
 A CLI tool for bidirectional sync between org-roam and Obsidian markdown files.
+
+**Warning!** This project is not even alpha. It's heavily vibe coded and not yet used in anger. If you've stumbled upon this project, use at your own risk with notes you care about.
 
 ## Overview
 
@@ -288,6 +290,7 @@ This project is in early development. Core features are being actively built.
 
 **Phase 3: Daemon & CLI**
 - [ ] `daemon` command with configurable interval
+- [ ] A way to stop the sync daemon
 - [ ] `sync` command (one-shot)
 - [ ] `status` command with TUI
 - [ ] Structured logging
