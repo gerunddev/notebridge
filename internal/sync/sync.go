@@ -48,15 +48,81 @@ func (s *Syncer) Sync() (*SyncResult, error) {
 		StartTime: time.Now(),
 	}
 
-	// TODO: Implement sync logic
 	// 1. Scan org_dir for .org files
+	orgFiles, err := ScanDirectory(s.config.OrgDir, ".org")
+	if err != nil {
+		return nil, fmt.Errorf("failed to scan org directory: %w", err)
+	}
+
 	// 2. Scan obsidian_dir for .md files
-	// 3. For each paired file:
-	//    - Check if one or both have changed
-	//    - Resolve conflicts (last-write-wins)
-	//    - Convert and sync the newer version
-	// 4. Handle new files (no pair yet)
-	// 5. Update state
+	mdFiles, err := ScanDirectory(s.config.ObsidianDir, ".md")
+	if err != nil {
+		return nil, fmt.Errorf("failed to scan obsidian directory: %w", err)
+	}
+
+	// Build a set of md files for quick lookup
+	mdFileSet := make(map[string]bool)
+	for _, mdPath := range mdFiles {
+		mdFileSet[mdPath] = true
+	}
+
+	// Track which md files have been processed (to find orphan md files)
+	processedMd := make(map[string]bool)
+
+	// 3. Process each org file
+	for _, orgPath := range orgFiles {
+		// Calculate corresponding md path
+		relPath, err := filepath.Rel(s.config.OrgDir, orgPath)
+		if err != nil {
+			result.Errors = append(result.Errors, fmt.Errorf("failed to get relative path for %s: %w", orgPath, err))
+			continue
+		}
+
+		// Replace .org with .md
+		baseName := relPath[:len(relPath)-4]
+		mdPath := filepath.Join(s.config.ObsidianDir, baseName+".md")
+
+		// Mark as processed
+		processedMd[mdPath] = true
+
+		// Sync the file pair
+		synced, err := s.SyncFilePair(orgPath, mdPath)
+		if err != nil {
+			result.Errors = append(result.Errors, fmt.Errorf("sync failed for %s: %w", relPath, err))
+			continue
+		}
+		if synced {
+			result.FilesProcessed++
+		}
+	}
+
+	// 4. Handle orphan md files (md files without corresponding org)
+	for _, mdPath := range mdFiles {
+		if processedMd[mdPath] {
+			continue
+		}
+
+		// Calculate corresponding org path
+		relPath, err := filepath.Rel(s.config.ObsidianDir, mdPath)
+		if err != nil {
+			result.Errors = append(result.Errors, fmt.Errorf("failed to get relative path for %s: %w", mdPath, err))
+			continue
+		}
+
+		// Replace .md with .org
+		baseName := relPath[:len(relPath)-3]
+		orgPath := filepath.Join(s.config.OrgDir, baseName+".org")
+
+		// Sync the file pair (org doesn't exist, so md will win)
+		synced, err := s.SyncFilePair(orgPath, mdPath)
+		if err != nil {
+			result.Errors = append(result.Errors, fmt.Errorf("sync failed for %s: %w", relPath, err))
+			continue
+		}
+		if synced {
+			result.FilesProcessed++
+		}
+	}
 
 	result.EndTime = time.Now()
 	return result, nil
@@ -159,15 +225,16 @@ func (s *Syncer) ResolveConflict(orgPath, mdPath string) (*ConflictDecision, err
 }
 
 // SyncFilePair syncs a pair of org and md files based on conflict resolution
-func (s *Syncer) SyncFilePair(orgPath, mdPath string) error {
+// Returns (synced, error) where synced indicates if a sync actually occurred
+func (s *Syncer) SyncFilePair(orgPath, mdPath string) (bool, error) {
 	decision, err := s.ResolveConflict(orgPath, mdPath)
 	if err != nil {
-		return fmt.Errorf("conflict resolution failed: %w", err)
+		return false, fmt.Errorf("conflict resolution failed: %w", err)
 	}
 
 	// No sync needed
 	if decision.Winner == "none" {
-		return nil
+		return false, nil
 	}
 
 	// Sync based on winner
@@ -175,27 +242,27 @@ func (s *Syncer) SyncFilePair(orgPath, mdPath string) error {
 	case "org":
 		// Convert org -> md
 		if err := s.convertOrgToMd(orgPath, mdPath); err != nil {
-			return fmt.Errorf("failed to convert org to md: %w", err)
+			return false, fmt.Errorf("failed to convert org to md: %w", err)
 		}
 		s.logger.Printf("[SYNC] %s → %s (%s)", filepath.Base(orgPath), filepath.Base(mdPath), decision.Reason)
 
 	case "obsidian":
 		// Convert md -> org
 		if err := s.convertMdToOrg(mdPath, orgPath); err != nil {
-			return fmt.Errorf("failed to convert md to org: %w", err)
+			return false, fmt.Errorf("failed to convert md to org: %w", err)
 		}
 		s.logger.Printf("[SYNC] %s → %s (%s)", filepath.Base(mdPath), filepath.Base(orgPath), decision.Reason)
 	}
 
 	// Update state for both files
 	if err := s.state.Update(orgPath, mdPath); err != nil {
-		return fmt.Errorf("failed to update org state: %w", err)
+		return false, fmt.Errorf("failed to update org state: %w", err)
 	}
 	if err := s.state.Update(mdPath, orgPath); err != nil {
-		return fmt.Errorf("failed to update md state: %w", err)
+		return false, fmt.Errorf("failed to update md state: %w", err)
 	}
 
-	return nil
+	return true, nil
 }
 
 // convertOrgToMd converts an org file to markdown

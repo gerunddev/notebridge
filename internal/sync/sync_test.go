@@ -224,8 +224,12 @@ This is a test.`
 		}
 
 		// Sync
-		if err := syncer.SyncFilePair(orgPath, mdPath); err != nil {
+		synced, err := syncer.SyncFilePair(orgPath, mdPath)
+		if err != nil {
 			t.Fatalf("SyncFilePair failed: %v", err)
+		}
+		if !synced {
+			t.Error("Expected sync to occur")
 		}
 
 		// Verify md file was created
@@ -255,8 +259,12 @@ This is a test.`
 		logBuf.Reset()
 
 		// Sync again - should be no-op
-		if err := syncer.SyncFilePair(orgPath, mdPath); err != nil {
+		synced, err := syncer.SyncFilePair(orgPath, mdPath)
+		if err != nil {
 			t.Fatalf("Second sync failed: %v", err)
+		}
+		if synced {
+			t.Error("Should not sync unchanged files")
 		}
 
 		// Should not log sync (no changes)

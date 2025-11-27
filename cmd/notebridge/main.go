@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"time"
@@ -121,25 +123,73 @@ func handleDaemon(args []string) {
 }
 
 func handleSync() {
-	fmt.Println("Running one-shot sync...")
+	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("212"))
+	successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
+	errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
+	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
+
+	fmt.Println(titleStyle.Render("NoteBridge Sync"))
+	fmt.Println()
 
 	// Load configuration
 	cfg, err := config.Load()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
+		fmt.Println(errorStyle.Render("✗ Error loading config: " + err.Error()))
 		os.Exit(1)
 	}
 
 	// Load state
 	st, err := state.Load(cfg.StateFile)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error loading state: %v\n", err)
+		fmt.Println(errorStyle.Render("✗ Error loading state: " + err.Error()))
 		os.Exit(1)
 	}
 
-	// Create syncer and run
+	fmt.Printf("%s → %s\n", dimStyle.Render(cfg.OrgDir), dimStyle.Render(cfg.ObsidianDir))
+	fmt.Println()
+
+	// Create syncer and configure logging
 	syncer := sync.NewSyncer(cfg, st)
-	runSync(syncer, st, cfg)
+
+	// Set up log file if configured
+	if cfg.LogFile != "" {
+		logFile, err := os.OpenFile(cfg.LogFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+		if err == nil {
+			defer logFile.Close()
+			syncer.SetLogger(log.New(logFile, "", log.LstdFlags))
+		}
+	} else {
+		// Suppress logging for one-shot sync if no log file configured
+		syncer.SetLogger(log.New(io.Discard, "", 0))
+	}
+	result, err := syncer.Sync()
+	if err != nil {
+		fmt.Println(errorStyle.Render("✗ Sync failed: " + err.Error()))
+		os.Exit(1)
+	}
+
+	// Report results
+	if result.FilesProcessed == 0 && len(result.Errors) == 0 {
+		fmt.Println(successStyle.Render("✓ Nothing to sync"))
+	} else if len(result.Errors) == 0 {
+		fmt.Println(successStyle.Render(fmt.Sprintf("✓ Synced %d file(s)", result.FilesProcessed)))
+	} else {
+		fmt.Printf("%s, %s\n",
+			successStyle.Render(fmt.Sprintf("✓ Synced %d file(s)", result.FilesProcessed)),
+			errorStyle.Render(fmt.Sprintf("%d error(s)", len(result.Errors))))
+		for _, e := range result.Errors {
+			fmt.Printf("  %s\n", errorStyle.Render("• "+e.Error()))
+		}
+	}
+
+	duration := result.EndTime.Sub(result.StartTime)
+	fmt.Println(dimStyle.Render(fmt.Sprintf("\nCompleted in %v", duration.Round(time.Millisecond))))
+
+	// Save state
+	if err := st.Save(cfg.StateFile); err != nil {
+		fmt.Println(errorStyle.Render("✗ Error saving state: " + err.Error()))
+		os.Exit(1)
+	}
 }
 
 func handleStatus() {
