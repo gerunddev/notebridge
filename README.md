@@ -292,7 +292,7 @@ This project is in early development. Core features are being actively built.
 - [ ] `daemon` command with configurable interval
 - [ ] A way to stop the sync daemon
 - [ ] `sync` command (one-shot)
-- [ ] `status` command with TUI
+- [x] `status` command with TUI
 - [ ] Structured logging
 - [ ] Error handling and recovery
 
