@@ -50,11 +50,13 @@ notebridge stop
 
 ### `notebridge daemon`
 
-Run daemon in foreground (for debugging).
+Run daemon in foreground with live TUI dashboard.
 
 ```bash
 notebridge daemon --interval 30s
 ```
+
+Shows the same live dashboard as the `dashboard` command, but runs the sync loop in the current process. Useful for development and debugging.
 
 **Flags**:
 - `--interval` - sync frequency (default: 30s)
@@ -69,17 +71,45 @@ notebridge sync
 
 ### `notebridge status`
 
-Display sync state.
+Display sync state with interactive TUI.
 
 ```bash
 notebridge status
 ```
 
-**Output**:
-- Last sync time
-- Pending changes
-- Recent errors
-- Files in conflict
+**Features**:
+- Live-updating table of pending changes
+- Interactive conflict resolution
+- Keyboard navigation (j/k or arrows)
+- Auto-refresh every 2 seconds
+
+### `notebridge browse`
+
+Browse all tracked files with interactive TUI.
+
+```bash
+notebridge browse
+```
+
+**Features**:
+- Table view showing all tracked files with status icons
+- Diff preview mode (press enter or 'd')
+- Interactive conflict resolution from diff view
+- Keyboard navigation
+
+### `notebridge dashboard`
+
+View live status of running daemon.
+
+```bash
+notebridge dashboard
+```
+
+Connects to a running daemon (started with `start`) and displays real-time dashboard with:
+- Daemon status, PID, and uptime
+- Last sync time and files synced count
+- Live log tail (scrollable with j/k)
+- Auto-refresh every 2 seconds
 
 ## Configuration
 
@@ -330,11 +360,12 @@ This project is in early development. Core features are being actively built.
   - Options: use org, use markdown, last-write-wins, skip file
   - Conflicts shown on single line in table
   - Auto-refresh after resolution
-- [ ] Live daemon status dashboard (Bubble Tea)
+- [x] Live daemon status dashboard (Bubble Tea)
   - Real-time dashboard with daemon uptime
   - Last sync time and files synced count
   - Live log tail display
   - Press 'q' to quit view
+  - Available via `dashboard` command (viewer) or `daemon` command (foreground mode)
 - [x] Interactive file browser (Bubbles)
   - List of tracked files with sync status
   - Interactive table with all files

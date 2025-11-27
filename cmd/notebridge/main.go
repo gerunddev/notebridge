@@ -3,10 +3,8 @@ package main
 import (
 	"fmt"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -42,6 +40,8 @@ func main() {
 		handleStatus()
 	case "browse", "files":
 		handleBrowse()
+	case "dashboard", "watch":
+		handleDashboard()
 	case "version", "-v", "--version":
 		fmt.Printf("notebridge v%s\n", version)
 	case "help", "-h", "--help":
@@ -66,6 +66,7 @@ Commands:
   sync        One-shot manual sync
   status      Display sync state
   browse      Browse all tracked files
+  dashboard   Live daemon status dashboard
   version     Show version information
   help        Show this help message
 
@@ -75,6 +76,7 @@ Examples:
   notebridge sync
   notebridge status
   notebridge browse
+  notebridge dashboard
 
 Configuration:
   Config file: ~/.config/notebridge/config.json
@@ -88,6 +90,7 @@ For more information, visit: https://github.com/gerunddev/notebridge
 func handleStart(args []string) {
 	successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
 	errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
+	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
 
 	// Check if already running
 	running, pid, _ := daemon.IsRunning()
@@ -124,6 +127,7 @@ func handleStart(args []string) {
 	running, pid, _ = daemon.IsRunning()
 	if running {
 		fmt.Println(successStyle.Render(fmt.Sprintf("✓ Daemon started with PID %d", pid)))
+		fmt.Println(dimStyle.Render("  Run 'notebridge dashboard' to monitor the daemon"))
 	} else {
 		fmt.Println(errorStyle.Render("✗ Daemon failed to start"))
 		os.Exit(1)
@@ -229,57 +233,122 @@ func handleDaemon(args []string) {
 	syncer := sync.NewSyncer(cfg, st)
 	syncer.SetLogger(log)
 
-	// Set up signal handling for graceful shutdown
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	// Channels for sync loop coordination
+	stopChan := make(chan bool, 1)
+	doneChan := make(chan bool, 1)
 
-	// Run sync loop
-	ticker := time.NewTicker(cfg.Interval)
-	defer ticker.Stop()
+	// Run sync loop in background goroutine
+	go func() {
+		defer func() {
+			doneChan <- true
+		}()
 
-	// Initial sync
-	result, err := syncer.Sync()
-	if err != nil {
-		log.Error("initial sync failed", "error", err)
-	} else {
-		log.Info("initial sync completed",
-			"files_synced", result.FilesProcessed,
-			"errors", len(result.Errors))
-	}
+		ticker := time.NewTicker(cfg.Interval)
+		defer ticker.Stop()
 
-	// Save state after initial sync
-	if err := st.Save(cfg.StateFile); err != nil {
-		log.Error("failed to save state", "error", err)
-	}
-
-	// Periodic sync loop
-	for {
-		select {
-		case <-ticker.C:
-			result, err := syncer.Sync()
-			if err != nil {
-				log.Error("sync failed", "error", err)
-				continue
-			}
-
-			log.Debug("sync tick completed",
+		// Initial sync
+		result, err := syncer.Sync()
+		if err != nil {
+			log.Error("initial sync failed", "error", err)
+		} else {
+			log.Info("initial sync completed",
 				"files_synced", result.FilesProcessed,
 				"errors", len(result.Errors))
-
-			// Save state after each sync
-			if err := st.Save(cfg.StateFile); err != nil {
-				log.Error("failed to save state", "error", err)
-			}
-
-		case sig := <-sigChan:
-			log.Info("received signal, shutting down", "signal", sig.String())
-			// Save final state
-			if err := st.Save(cfg.StateFile); err != nil {
-				log.Error("failed to save state on shutdown", "error", err)
-			}
-			return
 		}
+
+		// Save state after initial sync
+		if err := st.Save(cfg.StateFile); err != nil {
+			log.Error("failed to save state", "error", err)
+		}
+
+		// Periodic sync loop
+		for {
+			select {
+			case <-ticker.C:
+				result, err := syncer.Sync()
+				if err != nil {
+					log.Error("sync failed", "error", err)
+					continue
+				}
+
+				log.Debug("sync tick completed",
+					"files_synced", result.FilesProcessed,
+					"errors", len(result.Errors))
+
+				// Save state after each sync
+				if err := st.Save(cfg.StateFile); err != nil {
+					log.Error("failed to save state", "error", err)
+				}
+
+			case <-stopChan:
+				log.Info("sync loop stopping")
+				// Save final state
+				if err := st.Save(cfg.StateFile); err != nil {
+					log.Error("failed to save state on shutdown", "error", err)
+				}
+				return
+			}
+		}
+	}()
+
+	// Run TUI dashboard in main thread
+	m := tui.InitDaemonModel()
+	p := tea.NewProgram(m, tea.WithInput(os.Stdin))
+
+	// Function to gather and send daemon data
+	sendDaemonData := func() {
+		// Check daemon status
+		running, pid, startTime := daemon.IsRunning()
+
+		data := &tui.DaemonData{
+			Running:   running,
+			PID:       pid,
+			StartTime: startTime,
+		}
+
+		if running {
+			// Parse log file for recent activity
+			if cfg.LogFile != "" {
+				logLines, lastSync, filesSynced := parseLogFile(cfg.LogFile, 20)
+				data.LogLines = logLines
+				data.LastSyncTime = lastSync
+				data.FilesSynced = filesSynced
+			}
+		}
+
+		p.Send(tui.DaemonMsg{
+			Data: data,
+			Err:  nil,
+		})
 	}
+
+	// Set up periodic refresh for TUI
+	go func() {
+		ticker := time.NewTicker(2 * time.Second)
+		defer ticker.Stop()
+
+		// Send initial data
+		sendDaemonData()
+
+		// Refresh periodically
+		for range ticker.C {
+			sendDaemonData()
+		}
+	}()
+
+	// Run the TUI program
+	if _, err := p.Run(); err != nil {
+		errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
+		fmt.Println(errorStyle.Render("✗ Error: " + err.Error()))
+		stopChan <- true
+		<-doneChan // Wait for sync loop to finish
+		os.Exit(1)
+	}
+
+	// TUI exited normally (user pressed 'q'), stop sync loop gracefully
+	stopChan <- true
+	<-doneChan // Wait for sync loop to finish
+	log.Info("daemon shutdown complete")
 }
 
 func handleSync() {
@@ -638,3 +707,108 @@ func handleBrowse() {
 	}
 }
 
+func handleDashboard() {
+	errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
+
+	// Load configuration
+	cfg, err := config.Load()
+	if err != nil {
+		fmt.Println(errorStyle.Render("✗ Configuration not found"))
+		os.Exit(1)
+	}
+
+	// Initialize Bubble Tea program
+	m := tui.InitDaemonModel()
+	p := tea.NewProgram(m, tea.WithInput(os.Stdin))
+
+	// Function to gather and send daemon data
+	sendDaemonData := func() {
+		// Check daemon status
+		running, pid, startTime := daemon.IsRunning()
+
+		data := &tui.DaemonData{
+			Running:   running,
+			PID:       pid,
+			StartTime: startTime,
+		}
+
+		if running {
+			// Parse log file for recent activity
+			if cfg.LogFile != "" {
+				logLines, lastSync, filesSynced := parseLogFile(cfg.LogFile, 20)
+				data.LogLines = logLines
+				data.LastSyncTime = lastSync
+				data.FilesSynced = filesSynced
+			}
+		}
+
+		p.Send(tui.DaemonMsg{
+			Data: data,
+			Err:  nil,
+		})
+	}
+
+	// Set up periodic refresh
+	go func() {
+		ticker := time.NewTicker(2 * time.Second)
+		defer ticker.Stop()
+
+		// Send initial data
+		sendDaemonData()
+
+		// Refresh periodically
+		for range ticker.C {
+			sendDaemonData()
+		}
+	}()
+
+	// Run the program
+	if _, err := p.Run(); err != nil {
+		fmt.Println(errorStyle.Render("✗ Error: " + err.Error()))
+		os.Exit(1)
+	}
+}
+
+// parseLogFile reads the last N lines from the log file and extracts sync info
+func parseLogFile(logPath string, maxLines int) ([]string, time.Time, int) {
+	content, err := os.ReadFile(logPath)
+	if err != nil {
+		return []string{"Unable to read log file"}, time.Time{}, 0
+	}
+
+	lines := strings.Split(string(content), "\n")
+
+	// Get last N lines
+	startIdx := 0
+	if len(lines) > maxLines {
+		startIdx = len(lines) - maxLines
+	}
+	recentLines := lines[startIdx:]
+
+	// Parse for last sync time and files synced
+	var lastSync time.Time
+	filesSynced := 0
+
+	// Look for most recent "sync completed" line
+	for i := len(recentLines) - 1; i >= 0; i-- {
+		line := recentLines[i]
+		if strings.Contains(line, "sync completed") {
+			// Try to parse timestamp from start of line
+			// Format: 2025-11-27 14:11:57 INFO sync completed
+			if len(line) > 19 {
+				timeStr := line[:19]
+				if t, err := time.Parse("2006-01-02 15:04:05", timeStr); err == nil {
+					lastSync = t
+				}
+			}
+
+			// Try to extract files_synced count
+			if idx := strings.Index(line, "files_synced="); idx != -1 {
+				fmt.Sscanf(line[idx:], "files_synced=%d", &filesSynced)
+			}
+			break
+		}
+	}
+
+	return recentLines, lastSync, filesSynced
+}

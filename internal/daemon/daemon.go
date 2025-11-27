@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"syscall"
+	"time"
 )
 
 // PIDFile returns the path to the daemon PID file
@@ -64,16 +65,16 @@ func RemovePID() error {
 }
 
 // IsRunning checks if the daemon is currently running
-func IsRunning() (bool, int, error) {
+func IsRunning() (bool, int, time.Time) {
 	pid, err := ReadPID()
 	if err != nil {
-		return false, 0, nil // Not running if PID file doesn't exist
+		return false, 0, time.Time{} // Not running if PID file doesn't exist
 	}
 
 	// Check if process exists
 	process, err := os.FindProcess(pid)
 	if err != nil {
-		return false, 0, nil
+		return false, 0, time.Time{}
 	}
 
 	// Send signal 0 to check if process is alive (doesn't actually kill it)
@@ -81,18 +82,23 @@ func IsRunning() (bool, int, error) {
 	if err != nil {
 		// Process doesn't exist, clean up stale PID file
 		RemovePID()
-		return false, 0, nil
+		return false, 0, time.Time{}
 	}
 
-	return true, pid, nil
+	// Get PID file modification time as approximation of start time
+	pidFile := PIDFile()
+	info, err := os.Stat(pidFile)
+	var startTime time.Time
+	if err == nil {
+		startTime = info.ModTime()
+	}
+
+	return true, pid, startTime
 }
 
 // Stop stops the daemon by sending SIGTERM
 func Stop() error {
-	running, pid, err := IsRunning()
-	if err != nil {
-		return err
-	}
+	running, pid, _ := IsRunning()
 
 	if !running {
 		return fmt.Errorf("daemon is not running")
