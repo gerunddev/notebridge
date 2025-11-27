@@ -1,22 +1,117 @@
 package sync
 
 import (
+	"errors"
 	"fmt"
-	"log"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/gerunddev/notebridge/internal/config"
 	"github.com/gerunddev/notebridge/internal/convert"
+	"github.com/gerunddev/notebridge/internal/logger"
 	"github.com/gerunddev/notebridge/internal/state"
 )
+
+// Error types for categorization
+var (
+	ErrFileAccess   = errors.New("file access error")
+	ErrConversion   = errors.New("conversion error")
+	ErrState        = errors.New("state error")
+	ErrPermission   = errors.New("permission denied")
+)
+
+// isRetryable returns true if the error is transient and worth retrying
+func isRetryable(err error) bool {
+	if err == nil {
+		return false
+	}
+	// Retry on temporary filesystem errors
+	var pathErr *fs.PathError
+	if errors.As(err, &pathErr) {
+		// Resource temporarily unavailable, etc.
+		return true
+	}
+	return false
+}
+
+// withRetry executes a function with retry logic for transient errors
+func withRetry(maxRetries int, delay time.Duration, fn func() error) error {
+	var lastErr error
+	for i := 0; i <= maxRetries; i++ {
+		lastErr = fn()
+		if lastErr == nil {
+			return nil
+		}
+		if !isRetryable(lastErr) {
+			return lastErr
+		}
+		if i < maxRetries {
+			time.Sleep(delay)
+		}
+	}
+	return fmt.Errorf("failed after %d retries: %w", maxRetries+1, lastErr)
+}
+
+// atomicWriteFile writes content to a file atomically by writing to a temp file first
+func atomicWriteFile(path string, content []byte, perm os.FileMode) error {
+	// Ensure directory exists
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create directory: %w", err)
+	}
+
+	// Write to temp file in same directory (for atomic rename)
+	tmpFile, err := os.CreateTemp(dir, ".notebridge-*.tmp")
+	if err != nil {
+		return fmt.Errorf("failed to create temp file: %w", err)
+	}
+	tmpPath := tmpFile.Name()
+
+	// Clean up temp file on error
+	success := false
+	defer func() {
+		if !success {
+			os.Remove(tmpPath)
+		}
+	}()
+
+	// Write content
+	if _, err := tmpFile.Write(content); err != nil {
+		tmpFile.Close()
+		return fmt.Errorf("failed to write temp file: %w", err)
+	}
+
+	// Sync to disk
+	if err := tmpFile.Sync(); err != nil {
+		tmpFile.Close()
+		return fmt.Errorf("failed to sync temp file: %w", err)
+	}
+
+	if err := tmpFile.Close(); err != nil {
+		return fmt.Errorf("failed to close temp file: %w", err)
+	}
+
+	// Set permissions
+	if err := os.Chmod(tmpPath, perm); err != nil {
+		return fmt.Errorf("failed to set permissions: %w", err)
+	}
+
+	// Atomic rename
+	if err := os.Rename(tmpPath, path); err != nil {
+		return fmt.Errorf("failed to rename temp file: %w", err)
+	}
+
+	success = true
+	return nil
+}
 
 // Syncer handles bidirectional sync between org-roam and Obsidian
 type Syncer struct {
 	config *config.Config
 	state  *state.State
-	logger *log.Logger
+	logger *logger.Logger
 }
 
 // NewSyncer creates a new syncer instance
@@ -24,13 +119,13 @@ func NewSyncer(cfg *config.Config, st *state.State) *Syncer {
 	return &Syncer{
 		config: cfg,
 		state:  st,
-		logger: log.Default(),
+		logger: logger.Discard(),
 	}
 }
 
 // SetLogger sets a custom logger for the syncer
-func (s *Syncer) SetLogger(logger *log.Logger) {
-	s.logger = logger
+func (s *Syncer) SetLogger(l *logger.Logger) {
+	s.logger = l
 }
 
 // SyncResult represents the result of a sync operation
@@ -48,17 +143,25 @@ func (s *Syncer) Sync() (*SyncResult, error) {
 		StartTime: time.Now(),
 	}
 
+	s.logger.SyncStarted(s.config.OrgDir, s.config.ObsidianDir)
+
 	// 1. Scan org_dir for .org files
 	orgFiles, err := ScanDirectory(s.config.OrgDir, ".org")
 	if err != nil {
+		s.logger.Error("failed to scan org directory", "error", err)
 		return nil, fmt.Errorf("failed to scan org directory: %w", err)
 	}
 
 	// 2. Scan obsidian_dir for .md files
 	mdFiles, err := ScanDirectory(s.config.ObsidianDir, ".md")
 	if err != nil {
+		s.logger.Error("failed to scan obsidian directory", "error", err)
 		return nil, fmt.Errorf("failed to scan obsidian directory: %w", err)
 	}
+
+	s.logger.Debug("directories scanned",
+		"org_files", len(orgFiles),
+		"md_files", len(mdFiles))
 
 	// Build a set of md files for quick lookup
 	mdFileSet := make(map[string]bool)
@@ -74,6 +177,7 @@ func (s *Syncer) Sync() (*SyncResult, error) {
 		// Calculate corresponding md path
 		relPath, err := filepath.Rel(s.config.OrgDir, orgPath)
 		if err != nil {
+			s.logger.FileError(orgPath, err)
 			result.Errors = append(result.Errors, fmt.Errorf("failed to get relative path for %s: %w", orgPath, err))
 			continue
 		}
@@ -88,6 +192,7 @@ func (s *Syncer) Sync() (*SyncResult, error) {
 		// Sync the file pair
 		synced, err := s.SyncFilePair(orgPath, mdPath)
 		if err != nil {
+			s.logger.FileError(relPath, err)
 			result.Errors = append(result.Errors, fmt.Errorf("sync failed for %s: %w", relPath, err))
 			continue
 		}
@@ -105,6 +210,7 @@ func (s *Syncer) Sync() (*SyncResult, error) {
 		// Calculate corresponding org path
 		relPath, err := filepath.Rel(s.config.ObsidianDir, mdPath)
 		if err != nil {
+			s.logger.FileError(mdPath, err)
 			result.Errors = append(result.Errors, fmt.Errorf("failed to get relative path for %s: %w", mdPath, err))
 			continue
 		}
@@ -116,6 +222,7 @@ func (s *Syncer) Sync() (*SyncResult, error) {
 		// Sync the file pair (org doesn't exist, so md will win)
 		synced, err := s.SyncFilePair(orgPath, mdPath)
 		if err != nil {
+			s.logger.FileError(relPath, err)
 			result.Errors = append(result.Errors, fmt.Errorf("sync failed for %s: %w", relPath, err))
 			continue
 		}
@@ -125,6 +232,9 @@ func (s *Syncer) Sync() (*SyncResult, error) {
 	}
 
 	result.EndTime = time.Now()
+	duration := result.EndTime.Sub(result.StartTime)
+	s.logger.SyncCompleted(result.FilesProcessed, len(result.Errors), duration)
+
 	return result, nil
 }
 
@@ -211,14 +321,17 @@ func (s *Syncer) ResolveConflict(orgPath, mdPath string) (*ConflictDecision, err
 		return nil, fmt.Errorf("failed to stat md file: %w", err)
 	}
 
+	baseName := filepath.Base(orgPath)
+	baseName = baseName[:len(baseName)-4] // Remove .org
+
 	if orgInfo.ModTime().After(mdInfo.ModTime()) {
 		decision.Winner = "org"
 		decision.Reason = "both changed, org is newer (last-write-wins)"
-		s.logger.Printf("[CONFLICT] %s: both modified, org wins (newer mtime)", orgPath)
+		s.logger.Conflict(baseName, "org", "org has newer modification time")
 	} else {
 		decision.Winner = "obsidian"
 		decision.Reason = "both changed, obsidian is newer (last-write-wins)"
-		s.logger.Printf("[CONFLICT] %s: both modified, obsidian wins (newer mtime)", mdPath)
+		s.logger.Conflict(baseName, "obsidian", "obsidian has newer modification time")
 	}
 
 	return decision, nil
@@ -242,16 +355,18 @@ func (s *Syncer) SyncFilePair(orgPath, mdPath string) (bool, error) {
 	case "org":
 		// Convert org -> md
 		if err := s.convertOrgToMd(orgPath, mdPath); err != nil {
+			s.logger.ConversionError(orgPath, mdPath, err)
 			return false, fmt.Errorf("failed to convert org to md: %w", err)
 		}
-		s.logger.Printf("[SYNC] %s → %s (%s)", filepath.Base(orgPath), filepath.Base(mdPath), decision.Reason)
+		s.logger.FileSynced(filepath.Base(orgPath), filepath.Base(mdPath), decision.Reason)
 
 	case "obsidian":
 		// Convert md -> org
 		if err := s.convertMdToOrg(mdPath, orgPath); err != nil {
+			s.logger.ConversionError(mdPath, orgPath, err)
 			return false, fmt.Errorf("failed to convert md to org: %w", err)
 		}
-		s.logger.Printf("[SYNC] %s → %s (%s)", filepath.Base(mdPath), filepath.Base(orgPath), decision.Reason)
+		s.logger.FileSynced(filepath.Base(mdPath), filepath.Base(orgPath), decision.Reason)
 	}
 
 	// Update state for both files
@@ -265,50 +380,68 @@ func (s *Syncer) SyncFilePair(orgPath, mdPath string) (bool, error) {
 	return true, nil
 }
 
-// convertOrgToMd converts an org file to markdown
+// convertOrgToMd converts an org file to markdown with retry and atomic write
 func (s *Syncer) convertOrgToMd(orgPath, mdPath string) error {
-	// Read org file
-	content, err := os.ReadFile(orgPath)
-	if err != nil {
+	var content []byte
+	var md string
+
+	// Read with retry
+	err := withRetry(2, 100*time.Millisecond, func() error {
+		var err error
+		content, err = os.ReadFile(orgPath)
 		return err
+	})
+	if err != nil {
+		return fmt.Errorf("%w: reading %s: %v", ErrFileAccess, orgPath, err)
 	}
 
 	// Convert using id map from state
-	md, err := convert.OrgToMarkdown(string(content), s.state.IDMap)
+	md, err = convert.OrgToMarkdown(string(content), s.state.IDMap)
 	if err != nil {
-		return err
+		return fmt.Errorf("%w: %v", ErrConversion, err)
 	}
 
-	// Ensure directory exists
-	if err := os.MkdirAll(filepath.Dir(mdPath), 0755); err != nil {
-		return err
+	// Write atomically with retry
+	err = withRetry(2, 100*time.Millisecond, func() error {
+		return atomicWriteFile(mdPath, []byte(md), 0644)
+	})
+	if err != nil {
+		return fmt.Errorf("%w: writing %s: %v", ErrFileAccess, mdPath, err)
 	}
 
-	// Write md file
-	return os.WriteFile(mdPath, []byte(md), 0644)
+	return nil
 }
 
-// convertMdToOrg converts a markdown file to org
+// convertMdToOrg converts a markdown file to org with retry and atomic write
 func (s *Syncer) convertMdToOrg(mdPath, orgPath string) error {
-	// Read md file
-	content, err := os.ReadFile(mdPath)
-	if err != nil {
+	var content []byte
+	var org string
+
+	// Read with retry
+	err := withRetry(2, 100*time.Millisecond, func() error {
+		var err error
+		content, err = os.ReadFile(mdPath)
 		return err
+	})
+	if err != nil {
+		return fmt.Errorf("%w: reading %s: %v", ErrFileAccess, mdPath, err)
 	}
 
 	// Convert using id map from state
-	org, err := convert.MarkdownToOrg(string(content), s.state.IDMap)
+	org, err = convert.MarkdownToOrg(string(content), s.state.IDMap)
 	if err != nil {
-		return err
+		return fmt.Errorf("%w: %v", ErrConversion, err)
 	}
 
-	// Ensure directory exists
-	if err := os.MkdirAll(filepath.Dir(orgPath), 0755); err != nil {
-		return err
+	// Write atomically with retry
+	err = withRetry(2, 100*time.Millisecond, func() error {
+		return atomicWriteFile(orgPath, []byte(org), 0644)
+	})
+	if err != nil {
+		return fmt.Errorf("%w: writing %s: %v", ErrFileAccess, orgPath, err)
 	}
 
-	// Write org file
-	return os.WriteFile(orgPath, []byte(org), 0644)
+	return nil
 }
 
 // ScanDirectory scans a directory for files with given extension

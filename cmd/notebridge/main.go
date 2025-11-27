@@ -2,14 +2,13 @@ package main
 
 import (
 	"fmt"
-	"io"
-	"log"
 	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/gerunddev/notebridge/internal/config"
+	"github.com/gerunddev/notebridge/internal/logger"
 	"github.com/gerunddev/notebridge/internal/state"
 	"github.com/gerunddev/notebridge/internal/sync"
 )
@@ -153,14 +152,11 @@ func handleSync() {
 
 	// Set up log file if configured
 	if cfg.LogFile != "" {
-		logFile, err := os.OpenFile(cfg.LogFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+		l, cleanup, err := logger.NewFileLogger(cfg.LogFile)
 		if err == nil {
-			defer logFile.Close()
-			syncer.SetLogger(log.New(logFile, "", log.LstdFlags))
+			defer cleanup()
+			syncer.SetLogger(l)
 		}
-	} else {
-		// Suppress logging for one-shot sync if no log file configured
-		syncer.SetLogger(log.New(io.Discard, "", 0))
 	}
 	result, err := syncer.Sync()
 	if err != nil {

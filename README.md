@@ -293,8 +293,8 @@ This project is in early development. Core features are being actively built.
 - [ ] A way to stop the sync daemon
 - [x] `sync` command (one-shot)
 - [x] `status` command with TUI
-- [ ] Structured logging
-- [ ] Error handling and recovery
+- [x] Structured logging
+- [x] Error handling and recovery
 
 **Phase 4: Advanced Features**
 - [ ] `watch` - real-time file watcher mode

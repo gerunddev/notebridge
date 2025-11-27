@@ -2,7 +2,6 @@ package sync
 
 import (
 	"bytes"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gerunddev/notebridge/internal/config"
+	"github.com/gerunddev/notebridge/internal/logger"
 	"github.com/gerunddev/notebridge/internal/state"
 )
 
@@ -209,7 +209,7 @@ func TestSyncFilePair(t *testing.T) {
 
 	// Capture log output
 	var logBuf bytes.Buffer
-	syncer.SetLogger(log.New(&logBuf, "", 0))
+	syncer.SetLogger(logger.New(&logBuf))
 
 	orgPath := filepath.Join(cfg.OrgDir, "test.org")
 	mdPath := filepath.Join(cfg.ObsidianDir, "test.md")
@@ -237,10 +237,10 @@ This is a test.`
 			t.Error("MD file was not created")
 		}
 
-		// Verify log output
+		// Verify log output (structured logger format)
 		logOutput := logBuf.String()
-		if !strings.Contains(logOutput, "[SYNC]") {
-			t.Error("Expected sync log message")
+		if !strings.Contains(logOutput, "file synced") {
+			t.Errorf("Expected 'file synced' log message, got: %s", logOutput)
 		}
 		if !strings.Contains(logOutput, "test.org") {
 			t.Error("Expected org filename in log")
@@ -269,7 +269,7 @@ This is a test.`
 
 		// Should not log sync (no changes)
 		logOutput := logBuf.String()
-		if strings.Contains(logOutput, "[SYNC]") {
+		if strings.Contains(logOutput, "file synced") {
 			t.Error("Should not sync unchanged files")
 		}
 	})
@@ -291,7 +291,7 @@ func TestConflictLogging(t *testing.T) {
 
 	// Capture log output
 	var logBuf bytes.Buffer
-	syncer.SetLogger(log.New(&logBuf, "", 0))
+	syncer.SetLogger(logger.New(&logBuf))
 
 	orgPath := filepath.Join(cfg.OrgDir, "conflict.org")
 	mdPath := filepath.Join(cfg.ObsidianDir, "conflict.md")
@@ -318,13 +318,13 @@ func TestConflictLogging(t *testing.T) {
 		t.Fatalf("ResolveConflict failed: %v", err)
 	}
 
-	// Verify conflict was logged
+	// Verify conflict was logged (structured logger format)
 	logOutput := logBuf.String()
-	if !strings.Contains(logOutput, "[CONFLICT]") {
-		t.Error("Expected conflict log message")
+	if !strings.Contains(logOutput, "conflict resolved") {
+		t.Errorf("Expected 'conflict resolved' log message, got: %s", logOutput)
 	}
-	if !strings.Contains(logOutput, "both modified") {
-		t.Error("Expected 'both modified' in log")
+	if !strings.Contains(logOutput, "newer modification time") {
+		t.Errorf("Expected 'newer modification time' in log, got: %s", logOutput)
 	}
 
 	// Verify correct winner
