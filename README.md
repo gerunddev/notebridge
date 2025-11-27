@@ -1,48 +1,14 @@
 # notebridge
 
-A bidirectional CLI tool for converting notes between org-mode/org-roam and markdown formats.
+A CLI tool for bidirectional sync between org-roam and Obsidian markdown files.
 
 ## Overview
 
-**notebridge** enables seamless conversion between org-mode (org-roam) files used in Emacs and markdown files used in Obsidian and other markdown-based note-taking tools. The converter supports bidirectional conversion while preserving note structure, links, and metadata.
+**Purpose**: Keep notes in sync between Emacs org-roam and Obsidian, allowing seamless switching between editors while maintaining a single source of truth.
 
-## Architecture
+notebridge monitors your org-roam and Obsidian directories, automatically converting and syncing files bidirectionally. It handles format conversion, link mapping, metadata preservation, and conflict resolution.
 
-notebridge is designed as a daemon-first tool with CLI configuration capabilities:
-
-- **Daemon Mode**: Background process that watches directories and automatically converts files
-- **CLI Tool**: Configuration interface and one-off command execution
-- **SSH Support**: Access and convert files on remote systems
-
-## Dependencies
-
-### Charm Libraries
-
-- **[Bubble Tea](https://github.com/charmbracelet/bubbletea)**: TUI framework for interactive CLI experiences
-- **[Bubbles](https://github.com/charmbracelet/bubbles)**: Pre-built TUI components (spinners, progress bars, text inputs, file pickers)
-- **[Lip Gloss](https://github.com/charmbracelet/lipgloss)**: Styling and layout for beautiful terminal output
-- **[Huh](https://github.com/charmbracelet/huh)**: Forms and prompts for CLI configuration wizards
-- **[Glamour](https://github.com/charmbracelet/glamour)**: Markdown rendering in the terminal for previewing conversions
-- **[Log](https://github.com/charmbracelet/log)**: Structured logging for daemon operations
-- **[Wish](https://github.com/charmbracelet/wish)**: SSH server capabilities (for future remote access features)
-
-### Other Dependencies
-
-- **[fsnotify](https://github.com/fsnotify/fsnotify)**: File system watching for daemon mode
-- **[pkg/sftp](https://github.com/pkg/sftp)**: SSH/SFTP client for remote file access
-- **golang.org/x/crypto**: SSH client functionality
-
-## Features (Planned)
-
-- **Bidirectional Conversion**: Convert org-mode to markdown and vice versa
-- **Org-roam Support**: Preserve org-roam specific features (IDs, backlinks, properties)
-- **Link Handling**: Convert between org-mode links `[[id:...][description]]` and markdown wikilinks `[[...]]`
-- **Metadata Preservation**: Handle front matter (YAML/TOML) and org properties
-- **Daemon Mode**: Background process with directory watching for automatic conversion
-- **SSH/Remote Support**: Access and convert files on remote systems via SSH/SFTP
-- **Interactive CLI**: Configuration wizards and file previews
-- **Batch Processing**: Convert entire directories of notes
-- **Beautiful Terminal UI**: Built with [Charm](https://charm.land/) tools for an elegant experience
+**Language**: Go (using [Charm](https://charm.land/) libraries for TUI/styling)
 
 ## Installation
 
@@ -59,100 +25,204 @@ go mod download  # Download dependencies
 go build -o notebridge ./cmd/notebridge
 ```
 
-## Usage
+## Commands
 
-### One-off Conversions
+### `notebridge daemon`
+
+Run background sync loop.
 
 ```bash
-# Convert single file org-mode to markdown
-notebridge org-to-md notes/file.org
-notebridge o2m notes/file.org --out notes/file.md
-
-# Convert single file markdown to org-mode
-notebridge md-to-org notes/file.md
-notebridge m2o notes/file.md --out notes/file.org
-
-# Batch conversion
-notebridge org-to-md --dir notes/org --out notes/md
-notebridge md-to-org --dir notes/md --out notes/org
+notebridge daemon --interval 30s
 ```
 
-### Daemon Mode
+**Flags**:
+- `--interval` - sync frequency (default: 30s)
+
+### `notebridge sync`
+
+One-shot manual sync.
 
 ```bash
-# Interactive configuration
-notebridge config
+notebridge sync
+```
 
-# Start daemon with directory watching
-notebridge start --watch ~/notes/org --output ~/notes/md
+### `notebridge status`
 
-# Check daemon status
+Display sync state.
+
+```bash
 notebridge status
-
-# Stop daemon
-notebridge stop
 ```
 
-### Remote/SSH Support
+**Output**:
+- Last sync time
+- Pending changes
+- Recent errors
+- Files in conflict
 
-```bash
-# Configure SSH remote
-notebridge config add-remote my-server user@host:/path/to/notes
+## Configuration
 
-# Convert remote file
-notebridge org-to-md --remote my-server:file.org
+**Location**: `~/.notebridge/config.json`
 
-# Sync and convert remote directory
-notebridge sync --remote my-server --watch
+```json
+{
+  "org_dir": "/path/to/org-roam",
+  "obsidian_dir": "/path/to/obsidian/vault",
+  "log_file": "/tmp/notebridge.log",
+  "state_file": "~/.notebridge/state.json",
+  "interval": "30s"
+}
 ```
 
-### Preview
+## State Tracking
 
-```bash
-# Preview conversion in terminal before saving
-notebridge preview file.org
-notebridge preview file.md --format org
+**Location**: `~/.notebridge/state.json`
+
+### Strategy: mtime + content hash (hybrid)
+
+1. Check mtime first (fast path)
+2. If mtime changed, compute SHA256 hash
+3. Compare hash to detect actual content changes
+
+### State file structure
+
+```json
+{
+  "files": {
+    "notes/foo.org": {
+      "mtime": 1699900000,
+      "hash": "sha256:abc123...",
+      "paired_with": "notes/foo.md"
+    }
+  },
+  "id_map": {
+    "org-id-uuid-here": "filename-without-extension"
+  }
+}
 ```
+
+## Conflict Resolution
+
+**Strategy**: Last-write-wins
+
+1. Check both org and obsidian versions
+2. If only one changed → sync that direction
+3. If both changed → compare mtime, newer wins
+4. Log all conflicts to log file for review
+
+## Format Conversion
+
+### Links
+
+| Org-roam | Obsidian |
+|----------|----------|
+| `[[id:uuid][Description]]` | `[[filename\|Description]]` |
+| `[[id:uuid]]` | `[[filename]]` |
+
+ID-to-filename mapping maintained in state file.
+
+### Tasks
+
+| Org | Obsidian Tasks |
+|-----|----------------|
+| `* TODO Task` | `- [ ] Task` |
+| `* DONE Task` | `- [x] Task` |
+| `SCHEDULED: <2024-01-15>` | `⏳ 2024-01-15` |
+| `DEADLINE: <2024-01-15>` | `📅 2024-01-15` |
+| `[#A]` | `high` priority |
+| `[#B]` | `medium` priority |
+| `[#C]` | `low` priority |
+| `CLOSED: [2024-01-15]` | `✅ 2024-01-15` |
+
+### Metadata
+
+| Org | Obsidian |
+|-----|----------|
+| `:PROPERTIES:` drawer | YAML frontmatter |
+| `:ROAM_ALIASES:` | `aliases:` in frontmatter |
+| Heading tags `:tag1:tag2:` | `tags:` in frontmatter |
+
+### Structure
+
+| Org | Obsidian |
+|-----|----------|
+| `* Heading` | `# Heading` |
+| `** Subheading` | `## Subheading` |
+| `#+BEGIN_SRC lang` | ``` lang ``` |
+| `#+BEGIN_QUOTE` | `>` blockquote |
+
+### Embeds
+
+| Obsidian | Org (converted) |
+|----------|-----------------|
+| `![[note]]` | `# EMBED: note` (comment) |
+| `![[image.png]]` | `[[file:image.png]]` |
+
+### Features without equivalents
+
+Preserved as comments when converting:
+- Obsidian block references (`^block-id`)
+- Obsidian callouts (`> [!NOTE]`)
+- Org clock entries (`CLOCK:`)
+
+## Logging
+
+**Location**: Configurable, default `/tmp/notebridge.log`
+
+**Format**:
+```
+2024-01-15 10:30:00 [INFO] Sync started
+2024-01-15 10:30:01 [INFO] foo.org → foo.md (org newer)
+2024-01-15 10:30:01 [WARN] Conflict: bar.md - both modified, org wins (newer mtime)
+2024-01-15 10:30:02 [ERROR] Failed to parse baz.org: invalid property drawer
+2024-01-15 10:30:02 [INFO] Sync complete: 3 files synced, 1 conflict, 1 error
+```
+
+Designed for `tail -f` monitoring.
 
 ## Project Structure
 
 ```
 notebridge/
 ├── cmd/
-│   ├── notebridge/     # CLI entry point
-│   │   └── main.go
-│   └── notebridged/    # Daemon process (planned)
+│   └── notebridge/
 │       └── main.go
 ├── internal/
-│   ├── daemon/         # Daemon logic and file watching (planned)
-│   ├── ssh/            # SSH/SFTP client for remote files (planned)
-│   ├── ui/             # Bubble Tea TUI components (planned)
-│   ├── converter/      # Conversion logic
-│   │   └── converter.go
+│   ├── config/         # Configuration management
+│   │   └── config.go
+│   ├── state/          # State tracking (mtime, hash, id_map)
+│   │   └── state.go
+│   ├── sync/           # Sync logic and conflict resolution
+│   │   └── sync.go
+│   ├── convert/        # Format conversion
+│   │   ├── org_to_md.go
+│   │   └── md_to_org.go
 │   └── parser/         # Format parsers
 │       ├── org.go      # Org-mode parser
 │       └── markdown.go # Markdown parser
 ├── go.mod
+├── go.sum
 └── README.md
 ```
 
-## Conversion Details
+## Dependencies
 
-### Org-mode to Markdown
+### Charm Libraries
 
-- Headers: `* Header` → `# Header`
-- Properties drawer → YAML front matter
-- Org links `[[id:uuid][Title]]` → `[[Title]]` with ID mapping
-- Tags `:tag1:tag2:` → front matter tags
-- Code blocks `#+BEGIN_SRC` → ` ```lang `
+- **[Bubble Tea](https://github.com/charmbracelet/bubbletea)**: TUI framework for interactive CLI experiences
+- **[Bubbles](https://github.com/charmbracelet/bubbles)**: Pre-built TUI components (spinners, progress bars, text inputs)
+- **[Lip Gloss](https://github.com/charmbracelet/lipgloss)**: Styling and layout for beautiful terminal output
+- **[Huh](https://github.com/charmbracelet/huh)**: Forms and prompts for CLI configuration
+- **[Glamour](https://github.com/charmbracelet/glamour)**: Markdown rendering in terminal
+- **[Log](https://github.com/charmbracelet/log)**: Structured logging for daemon operations
+- **[Wish](https://github.com/charmbracelet/wish)**: SSH server capabilities
 
-### Markdown to Org-mode
+### Other Dependencies
 
-- Headers: `# Header` → `* Header`
-- YAML front matter → Properties drawer
-- Wikilinks `[[Title]]` → `[[id:uuid][Title]]` with ID generation
-- Front matter tags → `:tag1:tag2:`
-- Code blocks ` ```lang ` → `#+BEGIN_SRC lang`
+- **[fsnotify](https://github.com/fsnotify/fsnotify)**: File system watching for daemon mode
+- **[pkg/sftp](https://github.com/pkg/sftp)**: SSH/SFTP client for remote files
+- **golang.org/x/crypto**: SSH client functionality
+- Standard library: JSON, file I/O, hashing (SHA256)
 
 ## Development Status
 
@@ -160,32 +230,48 @@ This project is in early development. Core features are being actively built.
 
 ### Roadmap
 
-**Phase 1: Core Conversion**
+**Phase 1: Core Sync**
+- [ ] Configuration management (`~/.notebridge/config.json`)
+- [ ] State tracking (mtime + SHA256 hash)
 - [ ] Org-mode parser
 - [ ] Markdown parser
 - [ ] Basic org-to-markdown conversion
 - [ ] Basic markdown-to-org conversion
-- [ ] Link resolution and mapping
+- [ ] ID-to-filename mapping
+- [ ] Conflict resolution (last-write-wins)
+
+**Phase 2: Format Conversion**
+- [ ] Link conversion (org-roam IDs ↔ Obsidian wikilinks)
+- [ ] Task conversion (TODO/DONE ↔ checkboxes)
 - [ ] Metadata handling (properties ↔ front matter)
+- [ ] Scheduled/Deadline dates
+- [ ] Priority levels
+- [ ] Tags and aliases
+- [ ] Code blocks and quotes
+- [ ] Embeds handling
 
-**Phase 2: CLI & User Experience**
-- [ ] Integrate Charm libraries (Bubble Tea, Lip Gloss, Huh)
-- [ ] Interactive configuration wizard
-- [ ] File preview with Glamour
-- [ ] Batch processing
-- [ ] Configuration file support
+**Phase 3: Daemon & CLI**
+- [ ] `daemon` command with configurable interval
+- [ ] `sync` command (one-shot)
+- [ ] `status` command with TUI
+- [ ] Structured logging
+- [ ] Error handling and recovery
 
-**Phase 3: Daemon Mode**
-- [ ] File system watching with fsnotify
-- [ ] Daemon process (start/stop/status)
-- [ ] Background conversion service
-- [ ] Structured logging with Charm Log
+**Phase 4: Advanced Features**
+- [ ] `watch` - real-time file watcher mode
+- [ ] `install` - generate launchd/systemd service
+- [ ] `diff <file>` - show pending changes for a file
+- [ ] Selective sync (include/exclude patterns)
+- [ ] Dry-run mode
+- [ ] SSH/Remote support for syncing across machines
 
-**Phase 4: Remote/SSH Support**
-- [ ] SSH client implementation
-- [ ] SFTP file access
-- [ ] Remote configuration management
-- [ ] Sync capabilities
+## Future Considerations
+
+- Real-time file watching with fsnotify
+- System service installation (launchd/systemd)
+- Per-file diff preview
+- Pattern-based selective sync
+- Remote/SSH support for distributed note-taking
 
 ## Contributing
 
