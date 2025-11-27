@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"time"
 )
 
@@ -57,12 +58,22 @@ func Load(path string) (*State, error) {
 
 // Save writes state to the state file
 func (s *State) Save(path string) error {
-	data, err := json.MarshalIndent(s, "", "  ")
-	if err != nil {
-		return err
+	// Ensure directory exists
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create state directory: %w", err)
 	}
 
-	return os.WriteFile(path, data, 0644)
+	data, err := json.MarshalIndent(s, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal state: %w", err)
+	}
+
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		return fmt.Errorf("failed to write state file: %w", err)
+	}
+
+	return nil
 }
 
 // ComputeHash computes SHA256 hash of a file

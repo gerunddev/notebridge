@@ -265,14 +265,14 @@ This project is in early development. Core features are being actively built.
 ### Roadmap
 
 **Phase 1: Core Sync**
-- [ ] Configuration management (`~/.notebridge/config.json`)
-- [ ] State tracking (mtime + SHA256 hash)
+- [x] Configuration management (`~/.notebridge/config.json`)
+- [x] State tracking (mtime + SHA256 hash)
 - [x] Org-mode parser (line-by-line with library support)
 - [x] Markdown parser (line-by-line with library support)
 - [x] Basic org-to-markdown conversion
 - [x] Basic markdown-to-org conversion
 - [x] ID-to-filename mapping
-- [ ] Conflict resolution (last-write-wins)
+- [x] Conflict resolution (last-write-wins)
 
 **Phase 2: Format Conversion**
 - [x] Link conversion (org-roam IDs ↔ Obsidian wikilinks)
