@@ -6,9 +6,7 @@ A CLI tool for bidirectional sync between org-roam and Obsidian markdown files.
 
 ## Overview
 
-**Purpose**: Keep notes in sync between Emacs org-roam and Obsidian, allowing seamless switching between editors while maintaining a single source of truth.
-
-notebridge monitors your org-roam and Obsidian directories, automatically converting and syncing files bidirectionally. It handles format conversion, link mapping, metadata preservation, and conflict resolution.
+**Purpose**: Keep notes in sync between Emacs org-roam and Obsidian, allowing seamless switching between editors. Notebridge monitors your org-roam and Obsidian directories, automatically converting and syncing files bidirectionally. It handles format conversion, link mapping, metadata preservation, and conflict resolution.
 
 **Language**: Go (using [Charm](https://charm.land/) libraries for TUI/styling)
 
@@ -111,56 +109,6 @@ Connects to a running daemon (started with `start`) and displays real-time dashb
 - Live log tail (scrollable with j/k)
 - Auto-refresh every 2 seconds
 
-## Configuration
-
-**Location**: `~/.config/notebridge/config.json`
-
-```json
-{
-  "org_dir": "/path/to/org-roam",
-  "obsidian_dir": "/path/to/obsidian/vault",
-  "log_file": "/tmp/notebridge.log",
-  "state_file": "~/.config/notebridge/state.json",
-  "interval": "30s"
-}
-```
-
-## State Tracking
-
-**Location**: `~/.config/notebridge/state.json`
-
-### Strategy: mtime + content hash (hybrid)
-
-1. Check mtime first (fast path)
-2. If mtime changed, compute SHA256 hash
-3. Compare hash to detect actual content changes
-
-### State file structure
-
-```json
-{
-  "files": {
-    "notes/foo.org": {
-      "mtime": 1699900000,
-      "hash": "sha256:abc123...",
-      "paired_with": "notes/foo.md"
-    }
-  },
-  "id_map": {
-    "org-id-uuid-here": "filename-without-extension"
-  }
-}
-```
-
-## Conflict Resolution
-
-**Strategy**: Last-write-wins
-
-1. Check both org and obsidian versions
-2. If only one changed → sync that direction
-3. If both changed → compare mtime, newer wins
-4. Log all conflicts to log file for review
-
 ## Format Conversion
 
 ### Links
@@ -231,22 +179,7 @@ ID-to-filename mapping maintained in state file.
 
 Preserved as comments when converting:
 - Obsidian block references (`^block-id`)
-- Obsidian callouts (`> [!NOTE]`)
 - Org clock entries (`CLOCK:`)
-
-## Implementation
-
-notebridge uses a **hybrid annotation pattern** for conversion: custom features (org-roam IDs, wikilinks) are extracted and marked with unique placeholders, standard conversion is performed, then markers are replaced with converted features. This provides clean separation between custom org-roam/Obsidian features and standard markdown/org-mode syntax.
-
-**Libraries used**:
-- **[go-org](https://github.com/niklasfasching/go-org)**: Org-mode parsing (future enhancement)
-- **[goldmark](https://github.com/yuin/goldmark)**: Markdown parsing with frontmatter support
-- **[gopkg.in/yaml.v3](https://gopkg.in/yaml.v3)**: YAML frontmatter handling
-- **[google/uuid](https://github.com/google/uuid)**: Org-roam ID generation
-
-Current implementation uses manual line-by-line conversion with proper library-based YAML and UUID handling. The hybrid marker system is in place for bidirectional link conversion, with full test coverage validating roundtrip conversion integrity.
-
-**See**: `doc/conversion-options.md` for architectural decisions and `doc/hybrid-implementation.md` for implementation details.
 
 ## Logging
 
@@ -287,27 +220,6 @@ notebridge/
 ├── go.sum
 └── README.md
 ```
-
-## Dependencies
-
-### Charm Libraries
-
-- **[Bubble Tea](https://github.com/charmbracelet/bubbletea)**: TUI framework for interactive CLI experiences
-- **[Bubbles](https://github.com/charmbracelet/bubbles)**: Pre-built TUI components (spinners, progress bars, text inputs)
-- **[Lip Gloss](https://github.com/charmbracelet/lipgloss)**: Styling and layout for beautiful terminal output
-- **[Huh](https://github.com/charmbracelet/huh)**: Forms and prompts for CLI configuration
-- **[Glamour](https://github.com/charmbracelet/glamour)**: Markdown rendering in terminal
-- **[Log](https://github.com/charmbracelet/log)**: Structured logging for daemon operations
-- **[Wish](https://github.com/charmbracelet/wish)**: SSH server capabilities
-
-### Other Dependencies
-
-- **[fsnotify](https://github.com/fsnotify/fsnotify)**: File system watching for daemon mode
-- **[pkg/sftp](https://github.com/pkg/sftp)**: SSH/SFTP client for remote files
-- **golang.org/x/crypto**: SSH client functionality
-- Standard library: JSON, file I/O, hashing (SHA256)
-
-See **Implementation** section for conversion library details.
 
 ## Development Status
 
@@ -385,13 +297,70 @@ This project is in early development. Core features are being actively built.
 - [ ] SSH/Remote support for syncing across machines
 - [ ] Troubleshoot daemon not always stopping gracefully
 
-## Future Considerations
 
-- Real-time file watching with fsnotify
-- System service installation (launchd/systemd)
-- Per-file diff preview
-- Pattern-based selective sync
-- Remote/SSH support for distributed note-taking
+## Configuration
+
+**Location**: `~/.config/notebridge/config.json`
+
+```json
+{
+  "org_dir": "/path/to/org-roam",
+  "obsidian_dir": "/path/to/obsidian/vault",
+  "log_file": "/tmp/notebridge.log",
+  "state_file": "~/.config/notebridge/state.json",
+  "interval": "30s"
+}
+```
+
+## State Tracking
+
+**Location**: `~/.config/notebridge/state.json`
+
+### Strategy: mtime + content hash (hybrid)
+
+1. Check mtime first (fast path)
+2. If mtime changed, compute SHA256 hash
+3. Compare hash to detect actual content changes
+
+### State file structure
+
+```json
+{
+  "files": {
+    "notes/foo.org": {
+      "mtime": 1699900000,
+      "hash": "sha256:abc123...",
+      "paired_with": "notes/foo.md"
+    }
+  },
+  "id_map": {
+    "org-id-uuid-here": "filename-without-extension"
+  }
+}
+```
+
+## Conflict Resolution
+
+**Strategy**: Last-write-wins
+
+1. Check both org and obsidian versions
+2. If only one changed → sync that direction
+3. If both changed → compare mtime, newer wins
+4. Log all conflicts to log file for review
+
+## Implementation
+
+notebridge uses a **hybrid annotation pattern** for conversion: custom features (org-roam IDs, wikilinks) are extracted and marked with unique placeholders, standard conversion is performed, then markers are replaced with converted features. This provides clean separation between custom org-roam/Obsidian features and standard markdown/org-mode syntax.
+
+**Libraries used**:
+- **[go-org](https://github.com/niklasfasching/go-org)**: Org-mode parsing (future enhancement)
+- **[goldmark](https://github.com/yuin/goldmark)**: Markdown parsing with frontmatter support
+- **[gopkg.in/yaml.v3](https://gopkg.in/yaml.v3)**: YAML frontmatter handling
+- **[google/uuid](https://github.com/google/uuid)**: Org-roam ID generation
+
+Current implementation uses manual line-by-line conversion with proper library-based YAML and UUID handling. The hybrid marker system is in place for bidirectional link conversion, with full test coverage validating roundtrip conversion integrity.
+
+**See**: `doc/conversion-options.md` for architectural decisions and `doc/hybrid-implementation.md` for implementation details.
 
 ## Contributing
 
