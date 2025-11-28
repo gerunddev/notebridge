@@ -13,23 +13,12 @@ Run it as a background daemon for continuous sync, or trigger one-shot syncs whe
 
 - Go 1.21 or higher
 
-### Build from Source
+### Quick Install
+
+Install directly from GitHub:
 
 ```bash
-git clone https://github.com/gerunddev/notebridge.git
-cd notebridge
-go mod download  # Download dependencies
-go build -o notebridge ./cmd/notebridge
-```
-
-### Install to Go Path
-
-To install the binary to your Go path (allowing you to run `notebridge` from anywhere):
-
-```bash
-git clone https://github.com/gerunddev/notebridge.git
-cd notebridge
-go install ./cmd/notebridge
+go install github.com/gerunddev/notebridge@latest
 ```
 
 This installs the binary to `$GOPATH/bin` (typically `~/go/bin`). Make sure this directory is in your `PATH`:
@@ -37,6 +26,14 @@ This installs the binary to `$GOPATH/bin` (typically `~/go/bin`). Make sure this
 ```bash
 # Add to your ~/.bashrc, ~/.zshrc, or equivalent
 export PATH="$PATH:$(go env GOPATH)/bin"
+```
+
+### Build from Source
+
+```bash
+git clone https://github.com/gerunddev/notebridge.git
+cd notebridge
+go build
 ```
 
 ## Commands
