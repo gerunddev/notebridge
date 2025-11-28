@@ -191,8 +191,9 @@ func OrgToMarkdown(orgContent string, idMap map[string]string) (string, error) {
 			}
 		}
 
-		// Convert links in regular content
-		convertedLine := convertOrgLinks(line, idMap)
+		// Convert embeds and links in regular content
+		convertedLine := convertOrgEmbeds(line)
+		convertedLine = convertOrgLinks(convertedLine, idMap)
 
 		// Write the line (preserve blank lines)
 		md.WriteString(convertedLine + "\n")
@@ -446,4 +447,21 @@ func countLeadingChars(s string, ch rune) int {
 		}
 	}
 	return count
+}
+
+// convertOrgEmbeds converts org-mode embeds to Obsidian embeds
+// # EMBED: note → ![[note]]
+// [[file:image.png]] → ![[image.png]]
+func convertOrgEmbeds(line string) string {
+	trimmed := strings.TrimSpace(line)
+
+	// Convert comment-style embeds: # EMBED: note
+	if strings.HasPrefix(trimmed, "# EMBED:") {
+		embedTarget := strings.TrimSpace(strings.TrimPrefix(trimmed, "# EMBED:"))
+		return strings.Replace(line, trimmed, fmt.Sprintf("![[%s]]", embedTarget), 1)
+	}
+
+	// Convert file links to image embeds: [[file:image.png]] → ![[image.png]]
+	re := regexp.MustCompile(`\[\[file:([^\]]+)\]\]`)
+	return re.ReplaceAllString(line, "![[$1]]")
 }

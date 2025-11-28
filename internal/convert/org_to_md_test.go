@@ -181,3 +181,51 @@ func showDiff(t *testing.T, expected, actual string) {
 		}
 	}
 }
+
+func TestOrgEmbeds(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "file link to image embed",
+			input:    "[[file:diagram.png]]",
+			expected: "![[diagram.png]]",
+		},
+		{
+			name:     "embed comment to note embed",
+			input:    "# EMBED: Related Note",
+			expected: "![[Related Note]]",
+		},
+		{
+			name:     "embed comment with heading",
+			input:    "# EMBED: Related Note#Introduction",
+			expected: "![[Related Note#Introduction]]",
+		},
+		{
+			name:     "jpg file link",
+			input:    "[[file:photo.jpg]]",
+			expected: "![[photo.jpg]]",
+		},
+		{
+			name:     "svg file link",
+			input:    "[[file:icon.svg]]",
+			expected: "![[icon.svg]]",
+		},
+		{
+			name:     "mixed content with file link",
+			input:    "Here's an image: [[file:diagram.png]] and text after",
+			expected: "Here's an image: ![[diagram.png]] and text after",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := convertOrgEmbeds(tt.input)
+			if result != tt.expected {
+				t.Errorf("Expected %q, got %q", tt.expected, result)
+			}
+		})
+	}
+}

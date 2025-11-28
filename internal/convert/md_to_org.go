@@ -202,8 +202,9 @@ func MarkdownToOrg(mdContent string, idMap map[string]string) (string, error) {
 			}
 		}
 
-		// Convert wikilinks in regular content
-		convertedLine := convertMarkdownLinks(line, idMap)
+		// Convert embeds and wikilinks in regular content
+		convertedLine := convertMarkdownEmbeds(line)
+		convertedLine = convertMarkdownLinks(convertedLine, idMap)
 
 		// Write the line
 		org.WriteString(convertedLine + "\n")
@@ -419,4 +420,50 @@ func ExtractYAMLFrontMatter(content string) (properties string, bodyContent stri
 // GenerateOrgID generates a new org-mode ID (UUID v4)
 func GenerateOrgID() string {
 	return uuid.New().String()
+}
+
+// convertMarkdownEmbeds converts Obsidian embeds to org-mode equivalents
+// ![[image.png]] → [[file:image.png]]
+// ![[note]] → # EMBED: note
+func convertMarkdownEmbeds(line string) string {
+	// Pattern: ![[filename]] or ![[filename#heading]]
+	re := regexp.MustCompile(`!\[\[([^\]|#]+)(?:#([^\]]+))?\]\]`)
+
+	return re.ReplaceAllStringFunc(line, func(match string) string {
+		submatches := re.FindStringSubmatch(match)
+		if len(submatches) < 2 {
+			return match
+		}
+
+		filename := submatches[1]
+		heading := ""
+		if len(submatches) > 2 && submatches[2] != "" {
+			heading = submatches[2]
+		}
+
+		// Check if this is an image file based on extension
+		if isImageFile(filename) {
+			// Convert to org file link: [[file:image.png]]
+			return fmt.Sprintf("[[file:%s]]", filename)
+		}
+
+		// For note embeds, convert to comment
+		if heading != "" {
+			return fmt.Sprintf("# EMBED: %s#%s", filename, heading)
+		}
+		return fmt.Sprintf("# EMBED: %s", filename)
+	})
+}
+
+// isImageFile checks if a filename has an image extension
+func isImageFile(filename string) bool {
+	lower := strings.ToLower(filename)
+	imageExtensions := []string{".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".bmp", ".ico", ".tiff", ".tif"}
+
+	for _, ext := range imageExtensions {
+		if strings.HasSuffix(lower, ext) {
+			return true
+		}
+	}
+	return false
 }

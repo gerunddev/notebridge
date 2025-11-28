@@ -380,7 +380,7 @@ This project is in early development. Core features are being actively built.
 - [x] Tags and aliases
 - [x] Code blocks and quotes
 - [x] Callouts (Obsidian) ↔ Special blocks (Org)
-- [ ] Embeds handling
+- [x] Embeds handling
 
 **Phase 3: Daemon & CLI**
 - [x] `daemon` command with configurable interval

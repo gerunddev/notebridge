@@ -95,11 +95,25 @@ Code example block.
 
 All aliases supported: SUMMARY, TLDR, HINT, IMPORTANT, CHECK, DONE, HELP, FAQ, CAUTION, ATTENTION, FAIL, MISSING, ERROR.
 
+* Embeds
+
+Here's an embedded note:
+
+# EMBED: Related Note
+
+And an embedded image:
+
+[[file:diagram.png]]
+
+You can also embed specific headings:
+
+# EMBED: Related Note#Introduction
+
 * File Links and Attachments
 
 Org-mode file links:
 
-[[file:diagram.png]]
+[[file:another-image.jpg]]
 
 Attachment links:
 

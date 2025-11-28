@@ -217,3 +217,51 @@ This is the body.
 		t.Error("Body should not contain properties drawer")
 	}
 }
+
+func TestMarkdownEmbeds(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "image embed",
+			input:    "![[diagram.png]]",
+			expected: "[[file:diagram.png]]",
+		},
+		{
+			name:     "note embed",
+			input:    "![[Related Note]]",
+			expected: "# EMBED: Related Note",
+		},
+		{
+			name:     "note embed with heading",
+			input:    "![[Related Note#Introduction]]",
+			expected: "# EMBED: Related Note#Introduction",
+		},
+		{
+			name:     "jpg image embed",
+			input:    "![[photo.jpg]]",
+			expected: "[[file:photo.jpg]]",
+		},
+		{
+			name:     "svg image embed",
+			input:    "![[icon.svg]]",
+			expected: "[[file:icon.svg]]",
+		},
+		{
+			name:     "mixed content with embed",
+			input:    "Here's an image: ![[diagram.png]] and text after",
+			expected: "Here's an image: [[file:diagram.png]] and text after",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := convertMarkdownEmbeds(tt.input)
+			if result != tt.expected {
+				t.Errorf("Expected %q, got %q", tt.expected, result)
+			}
+		})
+	}
+}
