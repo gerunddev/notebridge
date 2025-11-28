@@ -10,22 +10,26 @@ import (
 
 // Config represents the notebridge configuration
 type Config struct {
-	OrgDir      string        `json:"org_dir"`
-	ObsidianDir string        `json:"obsidian_dir"`
-	LogFile     string        `json:"log_file"`
-	StateFile   string        `json:"state_file"`
-	Interval    time.Duration `json:"-"` // Custom JSON handling below
+	OrgDir             string        `json:"org_dir"`
+	ObsidianDir        string        `json:"obsidian_dir"`
+	LogFile            string        `json:"log_file"`
+	StateFile          string        `json:"state_file"`
+	Interval           time.Duration `json:"-"` // Custom JSON handling below
+	ResolutionStrategy string        `json:"resolution_strategy,omitempty"`
+	ExcludePatterns    []string      `json:"exclude_patterns,omitempty"`
 }
 
 // DefaultConfig returns default configuration
 func DefaultConfig() *Config {
 	home, _ := os.UserHomeDir()
 	return &Config{
-		OrgDir:      filepath.Join(home, "org-roam"),
-		ObsidianDir: filepath.Join(home, "Documents", "obsidian-vault"),
-		LogFile:     "/tmp/notebridge.log",
-		StateFile:   filepath.Join(home, ".config", "notebridge", "state.json"),
-		Interval:    30 * time.Second,
+		OrgDir:             filepath.Join(home, "org-roam"),
+		ObsidianDir:        filepath.Join(home, "Documents", "obsidian-vault"),
+		LogFile:            "/tmp/notebridge.log",
+		StateFile:          filepath.Join(home, ".config", "notebridge", "state.json"),
+		Interval:           30 * time.Second,
+		ResolutionStrategy: "last-write-wins", // Default strategy
+		ExcludePatterns:    []string{},        // No exclusions by default
 	}
 }
 
@@ -50,11 +54,13 @@ func Load() (*Config, error) {
 
 	// Use custom struct for JSON parsing to handle duration as string
 	var raw struct {
-		OrgDir      string `json:"org_dir"`
-		ObsidianDir string `json:"obsidian_dir"`
-		LogFile     string `json:"log_file"`
-		StateFile   string `json:"state_file"`
-		Interval    string `json:"interval"`
+		OrgDir             string   `json:"org_dir"`
+		ObsidianDir        string   `json:"obsidian_dir"`
+		LogFile            string   `json:"log_file"`
+		StateFile          string   `json:"state_file"`
+		Interval           string   `json:"interval"`
+		ResolutionStrategy string   `json:"resolution_strategy"`
+		ExcludePatterns    []string `json:"exclude_patterns"`
 	}
 
 	if err := json.Unmarshal(data, &raw); err != nil {
@@ -67,12 +73,26 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("invalid interval format '%s': %w", raw.Interval, err)
 	}
 
+	// Set default resolution strategy if not specified
+	resolutionStrategy := raw.ResolutionStrategy
+	if resolutionStrategy == "" {
+		resolutionStrategy = "last-write-wins"
+	}
+
+	// Set empty slice for exclude patterns if nil
+	excludePatterns := raw.ExcludePatterns
+	if excludePatterns == nil {
+		excludePatterns = []string{}
+	}
+
 	cfg := &Config{
-		OrgDir:      raw.OrgDir,
-		ObsidianDir: raw.ObsidianDir,
-		LogFile:     raw.LogFile,
-		StateFile:   raw.StateFile,
-		Interval:    interval,
+		OrgDir:             raw.OrgDir,
+		ObsidianDir:        raw.ObsidianDir,
+		LogFile:            raw.LogFile,
+		StateFile:          raw.StateFile,
+		Interval:           interval,
+		ResolutionStrategy: resolutionStrategy,
+		ExcludePatterns:    excludePatterns,
 	}
 
 	// Validate config
@@ -99,17 +119,21 @@ func (c *Config) Save() error {
 
 	// Use custom struct for JSON to handle duration as string
 	raw := struct {
-		OrgDir      string `json:"org_dir"`
-		ObsidianDir string `json:"obsidian_dir"`
-		LogFile     string `json:"log_file"`
-		StateFile   string `json:"state_file"`
-		Interval    string `json:"interval"`
+		OrgDir             string   `json:"org_dir"`
+		ObsidianDir        string   `json:"obsidian_dir"`
+		LogFile            string   `json:"log_file"`
+		StateFile          string   `json:"state_file"`
+		Interval           string   `json:"interval"`
+		ResolutionStrategy string   `json:"resolution_strategy,omitempty"`
+		ExcludePatterns    []string `json:"exclude_patterns,omitempty"`
 	}{
-		OrgDir:      c.OrgDir,
-		ObsidianDir: c.ObsidianDir,
-		LogFile:     c.LogFile,
-		StateFile:   c.StateFile,
-		Interval:    c.Interval.String(),
+		OrgDir:             c.OrgDir,
+		ObsidianDir:        c.ObsidianDir,
+		LogFile:            c.LogFile,
+		StateFile:          c.StateFile,
+		Interval:           c.Interval.String(),
+		ResolutionStrategy: c.ResolutionStrategy,
+		ExcludePatterns:    c.ExcludePatterns,
 	}
 
 	data, err := json.MarshalIndent(raw, "", "  ")
@@ -141,6 +165,17 @@ func (c *Config) Validate() error {
 	if c.Interval <= 0 {
 		return fmt.Errorf("interval must be positive")
 	}
+
+	// Validate resolution strategy
+	validStrategies := map[string]bool{
+		"last-write-wins": true,
+		"use-org":         true,
+		"use-markdown":    true,
+	}
+	if !validStrategies[c.ResolutionStrategy] {
+		return fmt.Errorf("invalid resolution_strategy '%s': must be one of: last-write-wins, use-org, use-markdown", c.ResolutionStrategy)
+	}
+
 	return nil
 }
 

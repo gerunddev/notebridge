@@ -55,7 +55,13 @@ func withRetry(maxRetries int, delay time.Duration, fn func() error) error {
 }
 
 // atomicWriteFile writes content to a file atomically by writing to a temp file first
-func atomicWriteFile(path string, content []byte, perm os.FileMode) error {
+// If dry-run mode is enabled, skips the actual write but logs what would have been done
+func (s *Syncer) atomicWriteFile(path string, content []byte, perm os.FileMode) error {
+	// In dry-run mode, skip the actual write
+	if s.DryRun {
+		s.logger.Info("dry-run: would write file", "path", path, "size", len(content))
+		return nil
+	}
 	// Ensure directory exists
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0755); err != nil {
@@ -112,6 +118,7 @@ type Syncer struct {
 	config *config.Config
 	state  *state.State
 	logger *logger.Logger
+	DryRun bool // If true, skip actual file writes
 }
 
 // NewSyncer creates a new syncer instance
@@ -146,14 +153,14 @@ func (s *Syncer) Sync() (*SyncResult, error) {
 	s.logger.SyncStarted(s.config.OrgDir, s.config.ObsidianDir)
 
 	// 1. Scan org_dir for .org files
-	orgFiles, err := ScanDirectory(s.config.OrgDir, ".org")
+	orgFiles, err := ScanDirectory(s.config.OrgDir, ".org", s.config.ExcludePatterns)
 	if err != nil {
 		s.logger.Error("failed to scan org directory", "error", err)
 		return nil, fmt.Errorf("failed to scan org directory: %w", err)
 	}
 
 	// 2. Scan obsidian_dir for .md files
-	mdFiles, err := ScanDirectory(s.config.ObsidianDir, ".md")
+	mdFiles, err := ScanDirectory(s.config.ObsidianDir, ".md", s.config.ExcludePatterns)
 	if err != nil {
 		s.logger.Error("failed to scan obsidian directory", "error", err)
 		return nil, fmt.Errorf("failed to scan obsidian directory: %w", err)
@@ -246,7 +253,7 @@ type ConflictDecision struct {
 	MdChanged  bool
 }
 
-// ResolveConflict implements last-write-wins conflict resolution
+// ResolveConflict resolves conflicts using the configured resolution strategy
 // Returns which file should be the source of truth
 func (s *Syncer) ResolveConflict(orgPath, mdPath string) (*ConflictDecision, error) {
 	// Check if org file exists and has changed
@@ -310,28 +317,44 @@ func (s *Syncer) ResolveConflict(orgPath, mdPath string) (*ConflictDecision, err
 		return decision, nil
 	}
 
-	// Case 7: Both changed - last-write-wins
-	orgInfo, err := os.Stat(orgPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to stat org file: %w", err)
-	}
-
-	mdInfo, err := os.Stat(mdPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to stat md file: %w", err)
-	}
-
+	// Case 7: Both changed - apply configured resolution strategy
 	baseName := filepath.Base(orgPath)
 	baseName = baseName[:len(baseName)-4] // Remove .org
 
-	if orgInfo.ModTime().After(mdInfo.ModTime()) {
+	switch s.config.ResolutionStrategy {
+	case "use-org":
 		decision.Winner = "org"
-		decision.Reason = "both changed, org is newer (last-write-wins)"
-		s.logger.Conflict(baseName, "org", "org has newer modification time")
-	} else {
+		decision.Reason = "both changed, using org (configured strategy)"
+		s.logger.Conflict(baseName, "org", "using org per resolution strategy")
+
+	case "use-markdown":
 		decision.Winner = "obsidian"
-		decision.Reason = "both changed, obsidian is newer (last-write-wins)"
-		s.logger.Conflict(baseName, "obsidian", "obsidian has newer modification time")
+		decision.Reason = "both changed, using markdown (configured strategy)"
+		s.logger.Conflict(baseName, "obsidian", "using markdown per resolution strategy")
+
+	case "last-write-wins":
+		fallthrough
+	default:
+		// Last-write-wins: check modification times
+		orgInfo, err := os.Stat(orgPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to stat org file: %w", err)
+		}
+
+		mdInfo, err := os.Stat(mdPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to stat md file: %w", err)
+		}
+
+		if orgInfo.ModTime().After(mdInfo.ModTime()) {
+			decision.Winner = "org"
+			decision.Reason = "both changed, org is newer (last-write-wins)"
+			s.logger.Conflict(baseName, "org", "org has newer modification time")
+		} else {
+			decision.Winner = "obsidian"
+			decision.Reason = "both changed, obsidian is newer (last-write-wins)"
+			s.logger.Conflict(baseName, "obsidian", "obsidian has newer modification time")
+		}
 	}
 
 	return decision, nil
@@ -466,7 +489,7 @@ func (s *Syncer) convertOrgToMd(orgPath, mdPath string) error {
 
 	// Write atomically with retry
 	err = withRetry(2, 100*time.Millisecond, func() error {
-		return atomicWriteFile(mdPath, []byte(md), 0644)
+		return s.atomicWriteFile(mdPath, []byte(md), 0644)
 	})
 	if err != nil {
 		return fmt.Errorf("%w: writing %s: %v", ErrFileAccess, mdPath, err)
@@ -498,7 +521,7 @@ func (s *Syncer) convertMdToOrg(mdPath, orgPath string) error {
 
 	// Write atomically with retry
 	err = withRetry(2, 100*time.Millisecond, func() error {
-		return atomicWriteFile(orgPath, []byte(org), 0644)
+		return s.atomicWriteFile(orgPath, []byte(org), 0644)
 	})
 	if err != nil {
 		return fmt.Errorf("%w: writing %s: %v", ErrFileAccess, orgPath, err)
@@ -508,7 +531,8 @@ func (s *Syncer) convertMdToOrg(mdPath, orgPath string) error {
 }
 
 // ScanDirectory scans a directory for files with given extension
-func ScanDirectory(dir string, ext string) ([]string, error) {
+// Files matching any of the excludePatterns are skipped
+func ScanDirectory(dir string, ext string, excludePatterns []string) ([]string, error) {
 	var files []string
 
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
@@ -517,7 +541,30 @@ func ScanDirectory(dir string, ext string) ([]string, error) {
 		}
 
 		if !info.IsDir() && filepath.Ext(path) == ext {
-			files = append(files, path)
+			// Check if file matches any exclude pattern
+			relPath, err := filepath.Rel(dir, path)
+			if err != nil {
+				relPath = filepath.Base(path)
+			}
+
+			excluded := false
+			for _, pattern := range excludePatterns {
+				matched, err := filepath.Match(pattern, relPath)
+				if err == nil && matched {
+					excluded = true
+					break
+				}
+				// Also try matching against the basename
+				matched, err = filepath.Match(pattern, filepath.Base(path))
+				if err == nil && matched {
+					excluded = true
+					break
+				}
+			}
+
+			if !excluded {
+				files = append(files, path)
+			}
 		}
 
 		return nil

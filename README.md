@@ -67,7 +67,11 @@ One-shot manual sync.
 
 ```bash
 notebridge sync
+notebridge sync --dry-run  # Preview changes without modifying files
 ```
+
+**Flags**:
+- `--dry-run` - Preview mode that shows what would be synced without actually modifying files
 
 ### `notebridge status`
 
@@ -111,6 +115,20 @@ Connects to a running daemon (started with `start`) and displays real-time dashb
 - Live log tail (scrollable with j/k)
 - Auto-refresh every 2 seconds
 
+### `notebridge install`
+
+Generate system service files for automatic daemon startup.
+
+```bash
+notebridge install
+```
+
+Generates platform-specific service files:
+- **macOS**: Creates launchd plist at `~/Library/LaunchAgents/com.notebridge.plist`
+- **Linux**: Creates systemd user service at `~/.config/systemd/user/notebridge.service`
+
+The command provides instructions for enabling and disabling the service after installation.
+
 ## Configuration
 
 **Location**: `~/.config/notebridge/config.json`
@@ -121,9 +139,23 @@ Connects to a running daemon (started with `start`) and displays real-time dashb
   "obsidian_dir": "/path/to/obsidian/vault",
   "log_file": "/tmp/notebridge.log",
   "state_file": "~/.config/notebridge/state.json",
-  "interval": "30s"
+  "interval": "30s",
+  "resolution_strategy": "last-write-wins",
+  "exclude_patterns": ["*.tmp", "drafts/*"]
 }
 ```
+
+**Configuration Options**:
+- `org_dir`: Path to org-roam directory
+- `obsidian_dir`: Path to Obsidian vault directory
+- `log_file`: Path to log file (default: `/tmp/notebridge.log`)
+- `state_file`: Path to state file (default: `~/.config/notebridge/state.json`)
+- `interval`: Sync interval for daemon mode (e.g., "30s", "1m", "5m")
+- `resolution_strategy`: Conflict resolution strategy (optional, default: "last-write-wins")
+  - `last-write-wins`: Use the file with newer modification time
+  - `use-org`: Always prefer org-roam version
+  - `use-markdown`: Always prefer Obsidian version
+- `exclude_patterns`: Glob patterns for files to exclude from sync (optional, default: [])
 
 ## State Tracking
 
@@ -373,24 +405,18 @@ This project is in early development. Core features are being actively built.
   - Navigate with keyboard (j/k or arrows)
 
 **Phase 5: Advanced Features**
-- [ ] Configurable resolution strategy
-  - Allow daemon/sync mode to use strategies other than last-write-wins
-  - Config option for default resolution (use-org, use-markdown, prompt, last-write-wins)
-  - Per-directory or per-file resolution rules
-- [ ] `watch` - real-time file watcher mode
-- [ ] `install` - generate launchd/systemd service
-- [ ] `diff <file>` - show pending changes for a file
-- [ ] Selective sync (include/exclude patterns)
-- [ ] Dry-run mode
-- [ ] SSH/Remote support for syncing across machines
+- [x] Configurable resolution strategy
+  - Config option for default resolution (use-org, use-markdown, last-write-wins)
+  - Allows daemon/sync mode to use strategies other than last-write-wins
+- [x] `install` - generate launchd/systemd service files
+- [x] Selective sync (exclude patterns)
+- [x] Dry-run mode (`--dry-run` flag)
 
 ## Future Considerations
 
-- Real-time file watching with fsnotify
-- System service installation (launchd/systemd)
-- Per-file diff preview
-- Pattern-based selective sync
-- Remote/SSH support for distributed note-taking
+- Per-directory or per-file resolution rules
+- Include patterns (complement to exclude patterns)
+- Remote sync over SSH/SFTP
 
 ## Contributing
 

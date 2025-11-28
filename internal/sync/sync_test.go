@@ -348,7 +348,7 @@ func TestScanDirectory(t *testing.T) {
 	os.WriteFile(filepath.Join(subDir, "file3.org"), []byte("test"), 0644)
 
 	// Scan for .org files
-	orgFiles, err := ScanDirectory(tmpDir, ".org")
+	orgFiles, err := ScanDirectory(tmpDir, ".org", []string{})
 	if err != nil {
 		t.Fatalf("ScanDirectory failed: %v", err)
 	}
@@ -359,7 +359,7 @@ func TestScanDirectory(t *testing.T) {
 	}
 
 	// Scan for .md files
-	mdFiles, err := ScanDirectory(tmpDir, ".md")
+	mdFiles, err := ScanDirectory(tmpDir, ".md", []string{})
 	if err != nil {
 		t.Fatalf("ScanDirectory failed: %v", err)
 	}

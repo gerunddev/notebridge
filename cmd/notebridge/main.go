@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -35,13 +36,15 @@ func main() {
 	case "stop":
 		handleStop()
 	case "sync":
-		handleSync()
+		handleSync(os.Args[2:])
 	case "status":
 		handleStatus()
 	case "browse", "files":
 		handleBrowse()
 	case "dashboard", "watch":
 		handleDashboard()
+	case "install":
+		handleInstall()
 	case "version", "-v", "--version":
 		fmt.Printf("notebridge v%s\n", version)
 	case "help", "-h", "--help":
@@ -63,10 +66,11 @@ Commands:
   start       Start daemon in background
   daemon      Run daemon in foreground (for debugging)
   stop        Stop the running daemon
-  sync        One-shot manual sync
+  sync        One-shot manual sync (use --dry-run to preview)
   status      Display sync state
   browse      Browse all tracked files
   dashboard   Live daemon status dashboard
+  install     Generate system service files
   version     Show version information
   help        Show this help message
 
@@ -74,9 +78,11 @@ Examples:
   notebridge start --interval 30s
   notebridge stop
   notebridge sync
+  notebridge sync --dry-run
   notebridge status
   notebridge browse
   notebridge dashboard
+  notebridge install
 
 Configuration:
   Config file: ~/.config/notebridge/config.json
@@ -351,12 +357,25 @@ func handleDaemon(args []string) {
 	log.Info("daemon shutdown complete")
 }
 
-func handleSync() {
+func handleSync(args []string) {
 	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("212"))
 	errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
 	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
 
-	fmt.Println(titleStyle.Render("NoteBridge Sync"))
+	// Parse --dry-run flag
+	dryRun := false
+	for _, arg := range args {
+		if arg == "--dry-run" {
+			dryRun = true
+			break
+		}
+	}
+
+	if dryRun {
+		fmt.Println(titleStyle.Render("NoteBridge Sync (DRY RUN)"))
+	} else {
+		fmt.Println(titleStyle.Render("NoteBridge Sync"))
+	}
 	fmt.Println()
 
 	// Load configuration
@@ -374,9 +393,14 @@ func handleSync() {
 	}
 
 	fmt.Printf("%s ↔ %s\n", dimStyle.Render(cfg.OrgDir), dimStyle.Render(cfg.ObsidianDir))
+	if dryRun {
+		fmt.Println(dimStyle.Render("(dry run - no files will be modified)"))
+	}
+	fmt.Println()
 
 	// Create syncer and configure logging
 	syncer := sync.NewSyncer(cfg, st)
+	syncer.DryRun = dryRun
 
 	// Set up log file if configured
 	if cfg.LogFile != "" {
@@ -474,12 +498,12 @@ func handleStatus() {
 		}
 
 		// Scan directories
-		orgFiles, err := sync.ScanDirectory(cfg.OrgDir, ".org")
+		orgFiles, err := sync.ScanDirectory(cfg.OrgDir, ".org", cfg.ExcludePatterns)
 		if err != nil {
 			orgFiles = []string{}
 		}
 
-		mdFiles, err := sync.ScanDirectory(cfg.ObsidianDir, ".md")
+		mdFiles, err := sync.ScanDirectory(cfg.ObsidianDir, ".md", cfg.ExcludePatterns)
 		if err != nil {
 			mdFiles = []string{}
 		}
@@ -611,7 +635,7 @@ func handleBrowse() {
 		var files []tui.FileInfo
 
 		// Build map of org files
-		orgFiles, _ := sync.ScanDirectory(cfg.OrgDir, ".org")
+		orgFiles, _ := sync.ScanDirectory(cfg.OrgDir, ".org", cfg.ExcludePatterns)
 		orgFileSet := make(map[string]bool)
 		for _, orgPath := range orgFiles {
 			relPath, _ := filepath.Rel(cfg.OrgDir, orgPath)
@@ -620,7 +644,7 @@ func handleBrowse() {
 		}
 
 		// Build map of md files
-		mdFiles, _ := sync.ScanDirectory(cfg.ObsidianDir, ".md")
+		mdFiles, _ := sync.ScanDirectory(cfg.ObsidianDir, ".md", cfg.ExcludePatterns)
 		mdFileSet := make(map[string]bool)
 		for _, mdPath := range mdFiles {
 			relPath, _ := filepath.Rel(cfg.ObsidianDir, mdPath)
@@ -811,4 +835,121 @@ func parseLogFile(logPath string, maxLines int) ([]string, time.Time, int) {
 	}
 
 	return recentLines, lastSync, filesSynced
+}
+
+// handleInstall generates system service files for daemon auto-start
+func handleInstall() {
+	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("212"))
+	successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("46"))
+	errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
+	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
+
+	fmt.Println(titleStyle.Render("NoteBridge Install"))
+	fmt.Println()
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		fmt.Println(errorStyle.Render("✗ Failed to get home directory: " + err.Error()))
+		os.Exit(1)
+	}
+
+	// Get the full path to the notebridge binary
+	execPath, err := os.Executable()
+	if err != nil {
+		fmt.Println(errorStyle.Render("✗ Failed to get executable path: " + err.Error()))
+		os.Exit(1)
+	}
+
+	switch runtime.GOOS {
+	case "darwin":
+		// macOS: Generate launchd plist
+		plistPath := filepath.Join(home, "Library", "LaunchAgents", "com.notebridge.plist")
+		plistDir := filepath.Dir(plistPath)
+
+		// Create LaunchAgents directory if it doesn't exist
+		if err := os.MkdirAll(plistDir, 0755); err != nil {
+			fmt.Println(errorStyle.Render("✗ Failed to create LaunchAgents directory: " + err.Error()))
+			os.Exit(1)
+		}
+
+		plistContent := fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.notebridge</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>%s</string>
+		<string>daemon</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<true/>
+	<key>StandardOutPath</key>
+	<string>/tmp/notebridge.out.log</string>
+	<key>StandardErrorPath</key>
+	<string>/tmp/notebridge.err.log</string>
+</dict>
+</plist>`, execPath)
+
+		if err := os.WriteFile(plistPath, []byte(plistContent), 0644); err != nil {
+			fmt.Println(errorStyle.Render("✗ Failed to write plist file: " + err.Error()))
+			os.Exit(1)
+		}
+
+		fmt.Println(successStyle.Render("✓ Service file created: " + plistPath))
+		fmt.Println()
+		fmt.Println("To enable the service:")
+		fmt.Println(dimStyle.Render("  launchctl load " + plistPath))
+		fmt.Println()
+		fmt.Println("To disable the service:")
+		fmt.Println(dimStyle.Render("  launchctl unload " + plistPath))
+
+	case "linux":
+		// Linux: Generate systemd user service
+		servicePath := filepath.Join(home, ".config", "systemd", "user", "notebridge.service")
+		serviceDir := filepath.Dir(servicePath)
+
+		// Create systemd user directory if it doesn't exist
+		if err := os.MkdirAll(serviceDir, 0755); err != nil {
+			fmt.Println(errorStyle.Render("✗ Failed to create systemd user directory: " + err.Error()))
+			os.Exit(1)
+		}
+
+		serviceContent := fmt.Sprintf(`[Unit]
+Description=NoteBridge - Org-roam and Obsidian bidirectional sync
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=%s daemon
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target`, execPath)
+
+		if err := os.WriteFile(servicePath, []byte(serviceContent), 0644); err != nil {
+			fmt.Println(errorStyle.Render("✗ Failed to write service file: " + err.Error()))
+			os.Exit(1)
+		}
+
+		fmt.Println(successStyle.Render("✓ Service file created: " + servicePath))
+		fmt.Println()
+		fmt.Println("To enable the service:")
+		fmt.Println(dimStyle.Render("  systemctl --user daemon-reload"))
+		fmt.Println(dimStyle.Render("  systemctl --user enable notebridge.service"))
+		fmt.Println(dimStyle.Render("  systemctl --user start notebridge.service"))
+		fmt.Println()
+		fmt.Println("To disable the service:")
+		fmt.Println(dimStyle.Render("  systemctl --user stop notebridge.service"))
+		fmt.Println(dimStyle.Render("  systemctl --user disable notebridge.service"))
+
+	default:
+		fmt.Println(errorStyle.Render("✗ Unsupported operating system: " + runtime.GOOS))
+		fmt.Println("Supported platforms: macOS (darwin), Linux")
+		os.Exit(1)
+	}
 }
