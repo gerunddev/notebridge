@@ -1,10 +1,11 @@
 # NoteBridge
 
-**Warning!** This project is not even alpha. It's heavily vibe coded and not yet used in anger. If you've stumbled upon this project, use at your own risk with notes you care about.
-
 NoteBridge keeps your notes synchronized between Emacs org-roam and Obsidian, letting you use whichever editor fits your current workflow while maintaining a single source of truth. It automatically converts formats, translates links and IDs, preserves metadata, and resolves conflicts—so you can switch seamlessly between plain-text org files and Obsidian's markdown without manual intervention.
 
 Run it as a background daemon for continuous sync, or trigger one-shot syncs when needed. Built with Go and [Charm](https://charm.land/) TUI libraries for a polished command-line experience.
+
+> [!WARNING]
+> This project is not even alpha. If you've stumbled upon this project, use at your own risk!
 
 ## Installation
 
