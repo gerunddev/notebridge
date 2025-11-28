@@ -170,33 +170,6 @@ Automatically handles cleanup:
   - `use-markdown`: Always prefer Obsidian version
 - `exclude_patterns`: Glob patterns for files to exclude from sync (optional, default: [])
 
-## State Tracking
-
-**Location**: `~/.config/notebridge/state.json`
-
-### Strategy: mtime + content hash (hybrid)
-
-1. Check mtime first (fast path)
-2. If mtime changed, compute SHA256 hash
-3. Compare hash to detect actual content changes
-
-### State file structure
-
-```json
-{
-  "files": {
-    "notes/foo.org": {
-      "mtime": 1699900000,
-      "hash": "sha256:abc123...",
-      "paired_with": "notes/foo.md"
-    }
-  },
-  "id_map": {
-    "org-id-uuid-here": "filename-without-extension"
-  }
-}
-```
-
 ## Conflict Resolution
 
 **Strategy**: Last-write-wins
@@ -279,20 +252,6 @@ Preserved as comments when converting:
 - Obsidian callouts (`> [!NOTE]`)
 - Org clock entries (`CLOCK:`)
 
-## Implementation
-
-notebridge uses a **hybrid annotation pattern** for conversion: custom features (org-roam IDs, wikilinks) are extracted and marked with unique placeholders, standard conversion is performed, then markers are replaced with converted features. This provides clean separation between custom org-roam/Obsidian features and standard markdown/org-mode syntax.
-
-**Libraries used**:
-- **[go-org](https://github.com/niklasfasching/go-org)**: Org-mode parsing (future enhancement)
-- **[goldmark](https://github.com/yuin/goldmark)**: Markdown parsing with frontmatter support
-- **[gopkg.in/yaml.v3](https://gopkg.in/yaml.v3)**: YAML frontmatter handling
-- **[google/uuid](https://github.com/google/uuid)**: Org-roam ID generation
-
-Current implementation uses manual line-by-line conversion with proper library-based YAML and UUID handling. The hybrid marker system is in place for bidirectional link conversion, with full test coverage validating roundtrip conversion integrity.
-
-**See**: `doc/conversion-options.md` for architectural decisions and `doc/hybrid-implementation.md` for implementation details.
-
 ## Logging
 
 **Location**: Configurable, default `/tmp/notebridge.log`
@@ -307,31 +266,6 @@ Current implementation uses manual line-by-line conversion with proper library-b
 ```
 
 Designed for `tail -f` monitoring.
-
-## Project Structure
-
-```
-notebridge/
-├── cmd/
-│   └── notebridge/
-│       └── main.go
-├── internal/
-│   ├── config/         # Configuration management
-│   │   └── config.go
-│   ├── state/          # State tracking (mtime, hash, id_map)
-│   │   └── state.go
-│   ├── sync/           # Sync logic and conflict resolution
-│   │   └── sync.go
-│   ├── convert/        # Format conversion
-│   │   ├── org_to_md.go
-│   │   └── md_to_org.go
-│   └── parser/         # Format parsers
-│       ├── org.go      # Org-mode parser
-│       └── markdown.go # Markdown parser
-├── go.mod
-├── go.sum
-└── README.md
-```
 
 ## Dependencies
 
@@ -352,84 +286,9 @@ notebridge/
 - **golang.org/x/crypto**: SSH client functionality
 - Standard library: JSON, file I/O, hashing (SHA256)
 
-See **Implementation** section for conversion library details.
+## Development
 
-## Development Status
-
-This project is in early development. Core features are being actively built.
-
-### Roadmap
-
-**Phase 1: Core Sync**
-- [x] Configuration management (`~/.config/notebridge/config.json`)
-- [x] State tracking (mtime + SHA256 hash)
-- [x] Org-mode parser (line-by-line with library support)
-- [x] Markdown parser (line-by-line with library support)
-- [x] Basic org-to-markdown conversion
-- [x] Basic markdown-to-org conversion
-- [x] ID-to-filename mapping
-- [x] Conflict resolution (last-write-wins)
-
-**Phase 2: Format Conversion**
-- [x] Link conversion (org-roam IDs ↔ Obsidian wikilinks)
-- [x] Task conversion (TODO/DONE ↔ checkboxes)
-- [x] Metadata handling (properties ↔ front matter)
-- [x] ROAM_REFS property (URLs, citation keys)
-- [x] Scheduled/Deadline dates
-- [x] Priority levels
-- [x] Tags and aliases
-- [x] Code blocks and quotes
-- [x] Callouts (Obsidian) ↔ Special blocks (Org)
-- [x] Embeds handling
-
-**Phase 3: Daemon & CLI**
-- [x] `daemon` command with configurable interval
-- [x] A way to stop the sync daemon
-- [x] `sync` command (one-shot)
-- [x] `status` command with TUI
-- [x] Structured logging
-- [x] Error handling and recovery
-
-**Phase 4: Enhanced TUI Experience**
-- [x] Enhanced status command with live updates (Bubble Tea + Bubbles)
-  - Live-updating display with auto-refresh
-  - Interactive table showing files with pending changes
-  - Spinner during directory scanning
-  - Keyboard navigation through file lists
-- [x] Sync progress indicator (Bubbles)
-  - Spinner during sync operation
-  - Real-time sync status updates
-  - Clean formatted output
-- [x] Interactive conflict resolution
-  - Prompt user to choose conflict resolution strategy
-  - Options: use org, use markdown, last-write-wins, skip file
-  - Conflicts shown on single line in table
-  - Auto-refresh after resolution
-- [x] Live daemon status dashboard (Bubble Tea)
-  - Real-time dashboard with daemon uptime
-  - Last sync time and files synced count
-  - Live log tail display
-  - Press 'q' to quit view
-  - Available via `dashboard` command (viewer) or `daemon` command (foreground mode)
-- [x] Interactive file browser (Bubbles)
-  - List of tracked files with sync status
-  - Interactive table with all files
-  - Diff preview mode (press enter/d)
-  - Navigate with keyboard (j/k or arrows)
-
-**Phase 5: Advanced Features**
-- [x] Configurable resolution strategy
-  - Config option for default resolution (use-org, use-markdown, last-write-wins)
-  - Allows daemon/sync mode to use strategies other than last-write-wins
-- [x] `install` - generate launchd/systemd service files
-- [x] Selective sync (exclude patterns)
-- [x] Dry-run mode (`--dry-run` flag)
-
-## Future Considerations
-
-- Per-directory or per-file resolution rules
-- Include patterns (complement to exclude patterns)
-- Remote sync over SSH/SFTP
+For information about the project structure, implementation details, and development roadmap, see [docs/project-management.md](docs/project-management.md).
 
 ## Contributing
 
