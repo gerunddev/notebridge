@@ -18,13 +18,13 @@ type BrowseData struct {
 
 // FileInfo represents a tracked file pair with its status
 type FileInfo struct {
-	BaseName    string
-	OrgPath     string
-	MdPath      string
-	Status      string // "synced", "pending-org", "pending-md", "conflict"
-	StatusIcon  string // "✓", "→", "←", "⚠"
-	HasOrgFile  bool
-	HasMdFile   bool
+	BaseName   string
+	OrgPath    string
+	MdPath     string
+	Status     string // "synced", "pending-org", "pending-md", "conflict"
+	StatusIcon string // "✓", "→", "←", "⚠"
+	HasOrgFile bool
+	HasMdFile  bool
 }
 
 // BrowseMsg is sent when browse data is ready
@@ -43,17 +43,17 @@ type DiffMsg struct {
 type RefreshBrowseMsg struct{}
 
 type browseModel struct {
-	table          table.Model
-	viewport       viewport.Model
-	data           *BrowseData
-	err            error
-	ready          bool
-	showingDiff    bool
-	showingPrompt  bool
-	diffContent    string
-	width          int
-	height         int
-	selectedFile   *FileInfo
+	table         table.Model
+	viewport      viewport.Model
+	data          *BrowseData
+	err           error
+	ready         bool
+	showingDiff   bool
+	showingPrompt bool
+	diffContent   string
+	width         int
+	height        int
+	selectedFile  *FileInfo
 	// Dependencies for resolution
 	orgDir      string
 	obsidianDir string
@@ -248,7 +248,7 @@ func (m browseModel) View() string {
 	b.WriteString("\n\n")
 
 	if m.err != nil {
-		return errorStyle.Render("✗ Error: " + m.err.Error()) + "\n"
+		return errorStyle.Render("✗ Error: "+m.err.Error()) + "\n"
 	}
 
 	if !m.ready || m.data == nil {

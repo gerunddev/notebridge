@@ -220,7 +220,11 @@ func handleDaemon(args []string) {
 		fmt.Fprintf(os.Stderr, "Error writing PID file: %v\n", err)
 		os.Exit(1)
 	}
-	defer daemon.RemovePID()
+	defer func() {
+		if err := daemon.RemovePID(); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to remove PID file on shutdown: %v\n", err)
+		}
+	}()
 
 	// Set up structured logging
 	var log *logger.Logger
@@ -831,9 +835,9 @@ func parseLogFile(logPath string, maxLines int) ([]string, time.Time, int) {
 				}
 			}
 
-			// Try to extract files_synced count
+			// Try to extract files_synced count (best effort - ignore errors)
 			if idx := strings.Index(line, "files_synced="); idx != -1 {
-				fmt.Sscanf(line[idx:], "files_synced=%d", &filesSynced)
+				_, _ = fmt.Sscanf(line[idx:], "files_synced=%d", &filesSynced) //nolint:errcheck // best effort parsing
 			}
 			break
 		}
@@ -989,7 +993,9 @@ func handleUninstall() {
 
 		// Try to unload the service first (ignore errors if not loaded)
 		fmt.Println("Attempting to unload service...")
-		exec.Command("launchctl", "unload", plistPath).Run()
+		if err := exec.Command("launchctl", "unload", plistPath).Run(); err != nil {
+			fmt.Println(warningStyle.Render("⚠ Could not unload service (may not be loaded): " + err.Error()))
+		}
 
 		// Remove the plist file
 		if err := os.Remove(plistPath); err != nil {
@@ -1013,8 +1019,12 @@ func handleUninstall() {
 
 		// Try to stop and disable the service first (ignore errors if not running)
 		fmt.Println("Attempting to stop and disable service...")
-		exec.Command("systemctl", "--user", "stop", "notebridge.service").Run()
-		exec.Command("systemctl", "--user", "disable", "notebridge.service").Run()
+		if err := exec.Command("systemctl", "--user", "stop", "notebridge.service").Run(); err != nil {
+			fmt.Println(warningStyle.Render("⚠ Could not stop service (may not be running): " + err.Error()))
+		}
+		if err := exec.Command("systemctl", "--user", "disable", "notebridge.service").Run(); err != nil {
+			fmt.Println(warningStyle.Render("⚠ Could not disable service (may not be enabled): " + err.Error()))
+		}
 
 		// Remove the service file
 		if err := os.Remove(servicePath); err != nil {
@@ -1023,7 +1033,9 @@ func handleUninstall() {
 		}
 
 		// Reload systemd
-		exec.Command("systemctl", "--user", "daemon-reload").Run()
+		if err := exec.Command("systemctl", "--user", "daemon-reload").Run(); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to reload systemd daemon: %v\n", err)
+		}
 
 		fmt.Println(successStyle.Render("✓ Service file removed: " + servicePath))
 		fmt.Println(successStyle.Render("✓ NoteBridge has been uninstalled"))

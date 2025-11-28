@@ -10,10 +10,10 @@ import (
 )
 
 var (
-	spinnerStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
-	helpStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
-	successStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
-	errorStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
+	spinnerStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+	helpStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
+	successStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
+	errorStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
 	highlightStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("212")).Bold(true)
 )
 
@@ -29,8 +29,8 @@ type SyncResult struct {
 type syncModel struct {
 	spinner      spinner.Model
 	status       string
-	filesScanned int
-	filesSynced  int
+	filesScanned int //nolint:unused // may be used in future progress tracking
+	filesSynced  int //nolint:unused // may be used in future progress tracking
 	complete     bool
 	result       *SyncResult
 	err          error
@@ -84,7 +84,7 @@ func (m syncModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m syncModel) View() string {
 	if m.complete {
 		if m.err != nil {
-			return errorStyle.Render("✗ Sync failed: " + m.err.Error()) + "\n"
+			return errorStyle.Render("✗ Sync failed: "+m.err.Error()) + "\n"
 		}
 
 		if m.result.FilesProcessed == 0 {

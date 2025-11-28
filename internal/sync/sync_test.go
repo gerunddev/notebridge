@@ -23,8 +23,12 @@ func TestResolveConflict(t *testing.T) {
 	}
 
 	// Create directories
-	os.MkdirAll(cfg.OrgDir, 0755)
-	os.MkdirAll(cfg.ObsidianDir, 0755)
+	if err := os.MkdirAll(cfg.OrgDir, 0755); err != nil {
+		t.Fatalf("Failed to create org directory: %v", err)
+	}
+	if err := os.MkdirAll(cfg.ObsidianDir, 0755); err != nil {
+		t.Fatalf("Failed to create obsidian directory: %v", err)
+	}
 
 	tests := []struct {
 		name           string
@@ -119,8 +123,8 @@ func TestResolveConflict(t *testing.T) {
 			mdPath := filepath.Join(cfg.ObsidianDir, "test.md")
 
 			// Clean up from previous test
-			os.Remove(orgPath)
-			os.Remove(mdPath)
+			_ = os.Remove(orgPath) //nolint:errcheck // cleanup - file may not exist
+			_ = os.Remove(mdPath)  //nolint:errcheck // cleanup - file may not exist
 
 			// Setup files based on test case
 			if tt.setupOrg {
@@ -130,7 +134,9 @@ func TestResolveConflict(t *testing.T) {
 				// Wait for mtime to settle
 				time.Sleep(100 * time.Millisecond)
 				// Update state to mark as tracked
-				st.Update(orgPath, mdPath)
+				if err := st.Update(orgPath, mdPath); err != nil {
+					t.Fatalf("Failed to update state for org: %v", err)
+				}
 			}
 
 			if tt.setupMd {
@@ -140,7 +146,9 @@ func TestResolveConflict(t *testing.T) {
 				// Wait for mtime to settle
 				time.Sleep(100 * time.Millisecond)
 				// Update state to mark as tracked
-				st.Update(mdPath, orgPath)
+				if err := st.Update(mdPath, orgPath); err != nil {
+					t.Fatalf("Failed to update state for md: %v", err)
+				}
 			}
 
 			// Wait for filesystem timestamp resolution before modifications
@@ -167,11 +175,15 @@ func TestResolveConflict(t *testing.T) {
 				if tt.orgNewer {
 					// Touch org file to make it newer
 					now := time.Now()
-					os.Chtimes(orgPath, now, now)
+					if err := os.Chtimes(orgPath, now, now); err != nil {
+						t.Fatalf("Failed to change org file time: %v", err)
+					}
 				} else {
 					// Touch md file to make it newer
 					now := time.Now()
-					os.Chtimes(mdPath, now, now)
+					if err := os.Chtimes(mdPath, now, now); err != nil {
+						t.Fatalf("Failed to change md file time: %v", err)
+					}
 				}
 			}
 
@@ -201,8 +213,12 @@ func TestSyncFilePair(t *testing.T) {
 		ObsidianDir: filepath.Join(tmpDir, "obsidian"),
 	}
 
-	os.MkdirAll(cfg.OrgDir, 0755)
-	os.MkdirAll(cfg.ObsidianDir, 0755)
+	if err := os.MkdirAll(cfg.OrgDir, 0755); err != nil {
+		t.Fatalf("Failed to create org directory: %v", err)
+	}
+	if err := os.MkdirAll(cfg.ObsidianDir, 0755); err != nil {
+		t.Fatalf("Failed to create obsidian directory: %v", err)
+	}
 
 	st := state.NewState()
 	syncer := NewSyncer(cfg, st)
@@ -283,8 +299,12 @@ func TestConflictLogging(t *testing.T) {
 		ObsidianDir: filepath.Join(tmpDir, "obsidian"),
 	}
 
-	os.MkdirAll(cfg.OrgDir, 0755)
-	os.MkdirAll(cfg.ObsidianDir, 0755)
+	if err := os.MkdirAll(cfg.OrgDir, 0755); err != nil {
+		t.Fatalf("Failed to create org directory: %v", err)
+	}
+	if err := os.MkdirAll(cfg.ObsidianDir, 0755); err != nil {
+		t.Fatalf("Failed to create obsidian directory: %v", err)
+	}
 
 	st := state.NewState()
 	syncer := NewSyncer(cfg, st)
@@ -297,20 +317,29 @@ func TestConflictLogging(t *testing.T) {
 	mdPath := filepath.Join(cfg.ObsidianDir, "conflict.md")
 
 	// Create both files
-	os.WriteFile(orgPath, []byte("* Initial"), 0644)
-	os.WriteFile(mdPath, []byte("# Initial"), 0644)
+	if err := os.WriteFile(orgPath, []byte("* Initial"), 0644); err != nil {
+		t.Fatalf("Failed to create org file: %v", err)
+	}
+	if err := os.WriteFile(mdPath, []byte("# Initial"), 0644); err != nil {
+		t.Fatalf("Failed to create md file: %v", err)
+	}
 
 	// Update state
-	st.Update(orgPath, mdPath)
-	st.Update(mdPath, orgPath)
+	if err := st.Update(orgPath, mdPath); err != nil {
+		t.Fatalf("Failed to update state for org: %v", err)
+	}
 
 	// Wait for timestamp resolution
 	time.Sleep(1100 * time.Millisecond)
 
 	// Modify both files to create conflict
-	os.WriteFile(orgPath, []byte("* Modified org"), 0644)
+	if err := os.WriteFile(orgPath, []byte("* Modified org"), 0644); err != nil {
+		t.Fatalf("Failed to modify org file: %v", err)
+	}
 	time.Sleep(1100 * time.Millisecond)
-	os.WriteFile(mdPath, []byte("# Modified md"), 0644)
+	if err := os.WriteFile(mdPath, []byte("# Modified md"), 0644); err != nil {
+		t.Fatalf("Failed to modify md file: %v", err)
+	}
 
 	// Resolve conflict - md should win (newer)
 	decision, err := syncer.ResolveConflict(orgPath, mdPath)
@@ -337,15 +366,27 @@ func TestScanDirectory(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create test files
-	os.WriteFile(filepath.Join(tmpDir, "file1.org"), []byte("test"), 0644)
-	os.WriteFile(filepath.Join(tmpDir, "file2.org"), []byte("test"), 0644)
-	os.WriteFile(filepath.Join(tmpDir, "file.md"), []byte("test"), 0644)
-	os.WriteFile(filepath.Join(tmpDir, "file.txt"), []byte("test"), 0644)
+	if err := os.WriteFile(filepath.Join(tmpDir, "file1.org"), []byte("test"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "file2.org"), []byte("test"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "file.md"), []byte("test"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "file.txt"), []byte("test"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
 
 	// Create subdirectory with files
 	subDir := filepath.Join(tmpDir, "subdir")
-	os.MkdirAll(subDir, 0755)
-	os.WriteFile(filepath.Join(subDir, "file3.org"), []byte("test"), 0644)
+	if err := os.MkdirAll(subDir, 0755); err != nil {
+		t.Fatalf("Failed to create subdirectory: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(subDir, "file3.org"), []byte("test"), 0644); err != nil {
+		t.Fatalf("Failed to create test file in subdir: %v", err)
+	}
 
 	// Scan for .org files
 	orgFiles, err := ScanDirectory(tmpDir, ".org", []string{})

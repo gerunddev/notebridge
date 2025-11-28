@@ -16,10 +16,10 @@ import (
 
 // Error types for categorization
 var (
-	ErrFileAccess   = errors.New("file access error")
-	ErrConversion   = errors.New("conversion error")
-	ErrState        = errors.New("state error")
-	ErrPermission   = errors.New("permission denied")
+	ErrFileAccess = errors.New("file access error")
+	ErrConversion = errors.New("conversion error")
+	ErrState      = errors.New("state error")
+	ErrPermission = errors.New("permission denied")
 )
 
 // isRetryable returns true if the error is transient and worth retrying
@@ -79,19 +79,25 @@ func (s *Syncer) atomicWriteFile(path string, content []byte, perm os.FileMode) 
 	success := false
 	defer func() {
 		if !success {
-			os.Remove(tmpPath)
+			if err := os.Remove(tmpPath); err != nil {
+				s.logger.Warn("failed to remove temp file during cleanup", "path", tmpPath, "error", err)
+			}
 		}
 	}()
 
 	// Write content
 	if _, err := tmpFile.Write(content); err != nil {
-		tmpFile.Close()
+		if closeErr := tmpFile.Close(); closeErr != nil {
+			s.logger.Warn("failed to close temp file after write error", "error", closeErr)
+		}
 		return fmt.Errorf("failed to write temp file: %w", err)
 	}
 
 	// Sync to disk
 	if err := tmpFile.Sync(); err != nil {
-		tmpFile.Close()
+		if closeErr := tmpFile.Close(); closeErr != nil {
+			s.logger.Warn("failed to close temp file after sync error", "error", closeErr)
+		}
 		return fmt.Errorf("failed to sync temp file: %w", err)
 	}
 

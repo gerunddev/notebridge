@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"time"
@@ -45,7 +46,9 @@ func NewFileLogger(path string) (*Logger, func(), error) {
 	})
 
 	cleanup := func() {
-		f.Close()
+		if err := f.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to close log file on cleanup: %v\n", err)
+		}
 	}
 
 	return &Logger{Logger: l}, cleanup, nil

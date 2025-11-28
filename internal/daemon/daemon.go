@@ -81,7 +81,9 @@ func IsRunning() (bool, int, time.Time) {
 	err = process.Signal(syscall.Signal(0))
 	if err != nil {
 		// Process doesn't exist, clean up stale PID file
-		RemovePID()
+		if cleanupErr := RemovePID(); cleanupErr != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to remove stale PID file: %v\n", cleanupErr)
+		}
 		return false, 0, time.Time{}
 	}
 

@@ -82,7 +82,11 @@ func ComputeHash(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer f.Close()
+	defer func() {
+		if err := f.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to close file during hash computation: %v\n", err)
+		}
+	}()
 
 	h := sha256.New()
 	if _, err := io.Copy(h, f); err != nil {

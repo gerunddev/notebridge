@@ -30,17 +30,17 @@ var (
 
 // StatusData holds all the information for the status display
 type StatusData struct {
-	OrgDir         string
-	ObsidianDir    string
-	Interval       time.Duration
-	OrgFileCount   int
-	MdFileCount    int
-	TrackedPairs   int
-	PendingOrg     []string
-	PendingMd      []string
-	Conflicts      []string
-	IDMapCount     int
-	Scanning       bool
+	OrgDir       string
+	ObsidianDir  string
+	Interval     time.Duration
+	OrgFileCount int
+	MdFileCount  int
+	TrackedPairs int
+	PendingOrg   []string
+	PendingMd    []string
+	Conflicts    []string
+	IDMapCount   int
+	Scanning     bool
 }
 
 // StatusMsg is sent when status data is ready
@@ -53,16 +53,16 @@ type StatusMsg struct {
 type ResolutionAction string
 
 const (
-	UseOrg         ResolutionAction = "org"
-	UseMarkdown    ResolutionAction = "markdown"
-	LastWriteWins  ResolutionAction = "last-write-wins"
-	Skip           ResolutionAction = "skip"
+	UseOrg        ResolutionAction = "org"
+	UseMarkdown   ResolutionAction = "markdown"
+	LastWriteWins ResolutionAction = "last-write-wins"
+	Skip          ResolutionAction = "skip"
 )
 
 // ResolveMsg is sent when a file resolution is chosen
 type ResolveMsg struct {
-	Action   ResolutionAction
-	FileRow  fileRow
+	Action  ResolutionAction
+	FileRow fileRow
 }
 
 // RefreshStatusMsg triggers a status refresh
@@ -79,7 +79,7 @@ type statusModel struct {
 	height         int
 	fileRows       []fileRow // Track file info for each row
 	showingPrompt  bool
-	selectedAction string
+	selectedAction string //nolint:unused // may be used in future UI enhancements
 	// Dependencies for resolution
 	orgDir      string
 	obsidianDir string
@@ -89,11 +89,11 @@ type statusModel struct {
 
 // fileRow tracks the file information for each table row
 type fileRow struct {
-	baseName    string // filename without extension
-	orgPath     string
-	mdPath      string
-	isConflict  bool
-	fileType    string // "org", "md", or "conflict"
+	baseName   string // filename without extension
+	orgPath    string
+	mdPath     string
+	isConflict bool
+	fileType   string // "org", "md", or "conflict"
 }
 
 // InitStatusModel creates a new status display model
@@ -296,7 +296,7 @@ func (m statusModel) View() string {
 	b.WriteString("\n\n")
 
 	if m.err != nil {
-		return errorStyle.Render("✗ Error: " + m.err.Error()) + "\n"
+		return errorStyle.Render("✗ Error: "+m.err.Error()) + "\n"
 	}
 
 	if m.scanning {

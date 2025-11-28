@@ -10,11 +10,11 @@ import (
 
 // FeatureMarker represents a custom feature that needs special handling
 type FeatureMarker struct {
-	MarkerID string              // Unique placeholder: "NOTEBR_MARKER_abc123"
-	Feature  string              // Feature type: "org-roam-id", "task-scheduled", etc.
-	Original string              // Original syntax
-	Convert  func() string       // Conversion function
-	Context  map[string]string   // Additional context data
+	MarkerID string            // Unique placeholder: "NOTEBR_MARKER_abc123"
+	Feature  string            // Feature type: "org-roam-id", "task-scheduled", etc.
+	Original string            // Original syntax
+	Convert  func() string     // Conversion function
+	Context  map[string]string // Additional context data
 }
 
 // HybridConverter handles conversion using the hybrid annotation pattern
@@ -141,6 +141,9 @@ func (c *HybridConverter) extractWikilinks(content string) string {
 }
 
 // extractOrgTasks extracts org-mode task metadata and replaces with markers
+// Currently unused - may be needed for future hybrid conversion improvements
+//
+//nolint:unused // keeping for potential future use
 func (c *HybridConverter) extractOrgTasks(content string) string {
 	// Pattern: * TODO/DONE with optional priority and scheduling
 	lines := strings.Split(content, "\n")
@@ -184,8 +187,8 @@ func (c *HybridConverter) extractOrgTasks(content string) string {
 					for j < len(lines) {
 						nextLine := strings.TrimSpace(lines[j])
 						if strings.HasPrefix(nextLine, "SCHEDULED:") ||
-						   strings.HasPrefix(nextLine, "DEADLINE:") ||
-						   strings.HasPrefix(nextLine, "CLOSED:") {
+							strings.HasPrefix(nextLine, "DEADLINE:") ||
+							strings.HasPrefix(nextLine, "CLOSED:") {
 							scheduling = append(scheduling, nextLine)
 							j++
 						} else {

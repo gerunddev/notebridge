@@ -10,12 +10,12 @@ import (
 
 // DaemonData holds daemon status information
 type DaemonData struct {
-	Running       bool
-	PID           int
-	StartTime     time.Time
-	LastSyncTime  time.Time
-	FilesSynced   int
-	LogLines      []string
+	Running      bool
+	PID          int
+	StartTime    time.Time
+	LastSyncTime time.Time
+	FilesSynced  int
+	LogLines     []string
 }
 
 // DaemonMsg is sent when daemon data is ready
@@ -73,7 +73,7 @@ func (m daemonModel) View() string {
 	b.WriteString("\n\n")
 
 	if m.err != nil {
-		return errorStyle.Render("✗ Error: " + m.err.Error()) + "\n"
+		return errorStyle.Render("✗ Error: "+m.err.Error()) + "\n"
 	}
 
 	if !m.ready || m.data == nil {

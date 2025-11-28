@@ -176,9 +176,10 @@ func OrgToMarkdown(orgContent string, idMap map[string]string) (string, error) {
 					// Add priority if present
 					if priority != "" {
 						priorityLevel := "medium"
-						if priority == "A" {
+						switch priority {
+						case "A":
 							priorityLevel = "high"
-						} else if priority == "C" {
+						case "C":
 							priorityLevel = "low"
 						}
 						md.WriteString("Priority: " + priorityLevel + "\n")

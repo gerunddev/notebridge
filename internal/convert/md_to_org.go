@@ -35,7 +35,7 @@ func MarkdownToOrg(mdContent string, idMap map[string]string) (string, error) {
 
 		// Skip emoji date lines and priority lines (already processed as task metadata)
 		if strings.HasPrefix(trimmed, "⏳ ") || strings.HasPrefix(trimmed, "📅 ") ||
-		   strings.HasPrefix(trimmed, "✅ ") || strings.HasPrefix(trimmed, "Priority: ") {
+			strings.HasPrefix(trimmed, "✅ ") || strings.HasPrefix(trimmed, "Priority: ") {
 			continue
 		}
 
@@ -49,7 +49,6 @@ func MarkdownToOrg(mdContent string, idMap map[string]string) (string, error) {
 			} else {
 				// Ending code block
 				inCodeBlock = false
-				codeBlockLang = ""
 				org.WriteString("#+END_SRC\n")
 			}
 			continue
@@ -164,11 +163,12 @@ func MarkdownToOrg(mdContent string, idMap map[string]string) (string, error) {
 							j++
 						} else if strings.HasPrefix(nextLine, "Priority: ") {
 							priorityLevel := strings.TrimSpace(strings.TrimPrefix(nextLine, "Priority:"))
-							if priorityLevel == "high" {
+							switch priorityLevel {
+							case "high":
 								priority = "A"
-							} else if priorityLevel == "medium" {
+							case "medium":
 								priority = "B"
-							} else if priorityLevel == "low" {
+							case "low":
 								priority = "C"
 							}
 							j++
