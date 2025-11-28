@@ -178,12 +178,23 @@ Both paths respect XDG environment variables if set.
 
 ## Conflict Resolution
 
-**Strategy**: Last-write-wins
+Conflict resolution is configurable via the `resolution_strategy` setting in your config file. Three strategies are available:
 
+**last-write-wins** (default):
 1. Check both org and obsidian versions
 2. If only one changed → sync that direction
 3. If both changed → compare mtime, newer wins
-4. Log all conflicts to log file for review
+4. Log conflict to log file for review
+
+**use-org**:
+- Always prefer the org-roam version when both files have changed
+- Obsidian changes are overwritten with org-roam content
+
+**use-markdown**:
+- Always prefer the Obsidian version when both files have changed
+- Org-roam changes are overwritten with Obsidian content
+
+All conflicts are logged regardless of strategy.
 
 ## Format Conversion
 
@@ -280,16 +291,13 @@ Designed for `tail -f` monitoring.
 - **[Bubble Tea](https://github.com/charmbracelet/bubbletea)**: TUI framework for interactive CLI experiences
 - **[Bubbles](https://github.com/charmbracelet/bubbles)**: Pre-built TUI components (spinners, progress bars, text inputs)
 - **[Lip Gloss](https://github.com/charmbracelet/lipgloss)**: Styling and layout for beautiful terminal output
-- **[Huh](https://github.com/charmbracelet/huh)**: Forms and prompts for CLI configuration
-- **[Glamour](https://github.com/charmbracelet/glamour)**: Markdown rendering in terminal
 - **[Log](https://github.com/charmbracelet/log)**: Structured logging for daemon operations
-- **[Wish](https://github.com/charmbracelet/wish)**: SSH server capabilities
 
 ### Other Dependencies
 
-- **[fsnotify](https://github.com/fsnotify/fsnotify)**: File system watching for daemon mode
-- **[pkg/sftp](https://github.com/pkg/sftp)**: SSH/SFTP client for remote files
-- **golang.org/x/crypto**: SSH client functionality
+- **[xdg](https://github.com/adrg/xdg)**: XDG Base Directory Specification support for platform-appropriate config/data paths
+- **[uuid](https://github.com/google/uuid)**: UUID generation and parsing for org-roam ID handling
+- **[yaml.v3](https://gopkg.in/yaml.v3)**: YAML parsing for org-mode property drawers
 - Standard library: JSON, file I/O, hashing (SHA256)
 
 ## Development
