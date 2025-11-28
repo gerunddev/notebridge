@@ -21,6 +21,23 @@ go mod download  # Download dependencies
 go build -o notebridge ./cmd/notebridge
 ```
 
+### Install to Go Path
+
+To install the binary to your Go path (allowing you to run `notebridge` from anywhere):
+
+```bash
+git clone https://github.com/gerunddev/notebridge.git
+cd notebridge
+go install ./cmd/notebridge
+```
+
+This installs the binary to `$GOPATH/bin` (typically `~/go/bin`). Make sure this directory is in your `PATH`:
+
+```bash
+# Add to your ~/.bashrc, ~/.zshrc, or equivalent
+export PATH="$PATH:$(go env GOPATH)/bin"
+```
+
 ## Commands
 
 ### `notebridge start`
