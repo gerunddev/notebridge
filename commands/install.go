@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"github.com/gerunddev/notebridge/internal/styles"
+	"github.com/gerunddev/notebridge/styles"
 )
 
 // Install generates system service files for daemon auto-start

@@ -8,13 +8,13 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/gerunddev/notebridge/internal/config"
-	"github.com/gerunddev/notebridge/internal/daemon"
-	"github.com/gerunddev/notebridge/internal/logger"
-	"github.com/gerunddev/notebridge/internal/state"
-	"github.com/gerunddev/notebridge/internal/styles"
-	"github.com/gerunddev/notebridge/internal/sync"
-	"github.com/gerunddev/notebridge/internal/tui"
+	"github.com/gerunddev/notebridge/config"
+	"github.com/gerunddev/notebridge/daemon"
+	"github.com/gerunddev/notebridge/logger"
+	"github.com/gerunddev/notebridge/state"
+	"github.com/gerunddev/notebridge/styles"
+	"github.com/gerunddev/notebridge/sync"
+	"github.com/gerunddev/notebridge/tui"
 )
 
 // Sync performs a one-shot sync operation

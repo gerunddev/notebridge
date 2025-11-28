@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/gerunddev/notebridge/internal/commands"
-	"github.com/gerunddev/notebridge/internal/config"
+	"github.com/gerunddev/notebridge/commands"
+	"github.com/gerunddev/notebridge/config"
 )
 
 const version = "0.1.0"

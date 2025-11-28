@@ -8,10 +8,10 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/gerunddev/notebridge/internal/config"
-	"github.com/gerunddev/notebridge/internal/convert"
-	"github.com/gerunddev/notebridge/internal/logger"
-	"github.com/gerunddev/notebridge/internal/state"
+	"github.com/gerunddev/notebridge/config"
+	"github.com/gerunddev/notebridge/convert"
+	"github.com/gerunddev/notebridge/logger"
+	"github.com/gerunddev/notebridge/state"
 )
 
 // Error types for categorization
