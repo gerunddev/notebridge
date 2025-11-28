@@ -9,6 +9,8 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/gerunddev/notebridge/diff"
+	"github.com/gerunddev/notebridge/state"
 	"github.com/gerunddev/notebridge/styles"
 )
 
@@ -58,12 +60,13 @@ type browseModel struct {
 	// Dependencies for resolution
 	orgDir      string
 	obsidianDir string
+	state       *state.State
 	resolveFunc func(orgPath, mdPath, direction string) error
 	refreshFunc func()
 }
 
 // InitBrowseModel creates a new file browser model
-func InitBrowseModel(orgDir, obsidianDir string, resolveFunc func(string, string, string) error, refreshFunc func()) browseModel {
+func InitBrowseModel(orgDir, obsidianDir string, st *state.State, resolveFunc func(string, string, string) error, refreshFunc func()) browseModel {
 	columns := []table.Column{
 		{Title: "File", Width: 50},
 		{Title: "Status", Width: 20},
@@ -100,6 +103,7 @@ func InitBrowseModel(orgDir, obsidianDir string, resolveFunc func(string, string
 		viewport:    vp,
 		orgDir:      orgDir,
 		obsidianDir: obsidianDir,
+		state:       st,
 		resolveFunc: resolveFunc,
 		refreshFunc: refreshFunc,
 	}
@@ -183,10 +187,7 @@ func (m browseModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					if selectedIdx < len(m.data.Files) {
 						m.selectedFile = &m.data.Files[selectedIdx]
 						m.showingDiff = true
-						// TODO: Load actual diff content
-						m.diffContent = fmt.Sprintf("Diff preview for: %s\n\n(Diff functionality to be implemented)", m.selectedFile.BaseName)
-						m.viewport.SetContent(m.diffContent)
-						m.viewport.GotoTop()
+						return m, m.loadDiff()
 					}
 				}
 				return m, nil
@@ -295,6 +296,37 @@ func (m browseModel) View() string {
 	}
 
 	return b.String()
+}
+
+// loadDiff creates a command that loads the diff for the selected file
+func (m browseModel) loadDiff() tea.Cmd {
+	return func() tea.Msg {
+		if m.selectedFile == nil {
+			return DiffMsg{
+				Content: "No file selected",
+				Err:     fmt.Errorf("no file selected"),
+			}
+		}
+
+		// Build full paths
+		orgPath := filepath.Join(m.orgDir, m.selectedFile.OrgPath)
+		mdPath := filepath.Join(m.obsidianDir, m.selectedFile.MdPath)
+
+		// Generate diff (currently only markdown format)
+		// Future: This will be configurable to support org format too
+		diffContent, err := diff.Generate(orgPath, mdPath, m.state, diff.FormatMarkdown)
+		if err != nil {
+			return DiffMsg{
+				Content: fmt.Sprintf("Error generating diff: %s", err.Error()),
+				Err:     err,
+			}
+		}
+
+		return DiffMsg{
+			Content: diffContent,
+			Err:     nil,
+		}
+	}
 }
 
 // performResolution creates a command that performs the file sync

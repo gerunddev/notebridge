@@ -381,7 +381,7 @@ func Browse() {
 	}
 
 	// Initialize Bubble Tea program with all functions
-	m := tui.InitBrowseModel(cfg.OrgDir, cfg.ObsidianDir, resolveFunc, sendBrowseData)
+	m := tui.InitBrowseModel(cfg.OrgDir, cfg.ObsidianDir, st, resolveFunc, sendBrowseData)
 	p = tea.NewProgram(m, tea.WithInput(os.Stdin))
 
 	// Send initial browse data
