@@ -349,10 +349,10 @@ func Browse() {
 					status = "conflict"
 					statusIcon = "⚠"
 				} else if orgChanged {
-					status = "org pending"
+					status = "org → md"
 					statusIcon = "→"
 				} else if mdChanged {
-					status = "md pending"
+					status = "md → org"
 					statusIcon = "←"
 				} else {
 					status = "synced"

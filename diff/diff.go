@@ -56,12 +56,31 @@ func generateMarkdown(orgPath, mdPath string, st *state.State) (string, error) {
 		return "", fmt.Errorf("failed to convert org to markdown: %w", err)
 	}
 
-	// Generate unified diff
+	// Determine which file is newer to show diff in correct direction
+	orgInfo, err := os.Stat(orgPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to stat org file: %w", err)
+	}
+	mdInfo, err := os.Stat(mdPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to stat md file: %w", err)
+	}
+
+	// Generate unified diff with newer file as "new" side
 	orgFileName := filepath.Base(orgPath)
 	mdFileName := filepath.Base(mdPath)
 
-	edits := myers.ComputeEdits(span.URIFromPath(orgFileName), orgAsMd, string(mdContent))
-	unified := gotextdiff.ToUnified(orgFileName, mdFileName, orgAsMd, edits)
+	var unified string
+
+	if orgInfo.ModTime().After(mdInfo.ModTime()) {
+		// Org is newer: show md → org (md is old, org is new)
+		edits := myers.ComputeEdits(span.URIFromPath(mdFileName), string(mdContent), orgAsMd)
+		unified = fmt.Sprint(gotextdiff.ToUnified(mdFileName, orgFileName, string(mdContent), edits))
+	} else {
+		// Md is newer: show org → md (org is old, md is new)
+		edits := myers.ComputeEdits(span.URIFromPath(orgFileName), orgAsMd, string(mdContent))
+		unified = fmt.Sprint(gotextdiff.ToUnified(orgFileName, mdFileName, orgAsMd, edits))
+	}
 
 	// Wrap in markdown diff code fence
 	diffMarkdown := fmt.Sprintf("```diff\n%s```\n", unified)
