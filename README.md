@@ -129,6 +129,19 @@ Generates platform-specific service files:
 
 The command provides instructions for enabling and disabling the service after installation.
 
+### `notebridge uninstall`
+
+Remove system service files.
+
+```bash
+notebridge uninstall
+```
+
+Automatically handles cleanup:
+- Stops and unloads/disables the service if running
+- Removes the service file
+- Reloads system service manager (systemd only)
+
 ## Configuration
 
 **Location**: `~/.config/notebridge/config.json`

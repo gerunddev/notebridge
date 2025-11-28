@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -45,6 +46,8 @@ func main() {
 		handleDashboard()
 	case "install":
 		handleInstall()
+	case "uninstall":
+		handleUninstall()
 	case "version", "-v", "--version":
 		fmt.Printf("notebridge v%s\n", version)
 	case "help", "-h", "--help":
@@ -71,6 +74,7 @@ Commands:
   browse      Browse all tracked files
   dashboard   Live daemon status dashboard
   install     Generate system service files
+  uninstall   Remove system service files
   version     Show version information
   help        Show this help message
 
@@ -83,6 +87,7 @@ Examples:
   notebridge browse
   notebridge dashboard
   notebridge install
+  notebridge uninstall
 
 Configuration:
   Config file: ~/.config/notebridge/config.json
@@ -946,6 +951,82 @@ WantedBy=default.target`, execPath)
 		fmt.Println("To disable the service:")
 		fmt.Println(dimStyle.Render("  systemctl --user stop notebridge.service"))
 		fmt.Println(dimStyle.Render("  systemctl --user disable notebridge.service"))
+
+	default:
+		fmt.Println(errorStyle.Render("✗ Unsupported operating system: " + runtime.GOOS))
+		fmt.Println("Supported platforms: macOS (darwin), Linux")
+		os.Exit(1)
+	}
+}
+
+// handleUninstall removes system service files
+func handleUninstall() {
+	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("212"))
+	successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("46"))
+	errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
+	warningStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
+
+	fmt.Println(titleStyle.Render("NoteBridge Uninstall"))
+	fmt.Println()
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		fmt.Println(errorStyle.Render("✗ Failed to get home directory: " + err.Error()))
+		os.Exit(1)
+	}
+
+	switch runtime.GOOS {
+	case "darwin":
+		// macOS: Remove launchd plist
+		plistPath := filepath.Join(home, "Library", "LaunchAgents", "com.notebridge.plist")
+
+		// Check if file exists
+		if _, err := os.Stat(plistPath); os.IsNotExist(err) {
+			fmt.Println(warningStyle.Render("⚠ Service file not found: " + plistPath))
+			fmt.Println("Nothing to uninstall.")
+			return
+		}
+
+		// Try to unload the service first (ignore errors if not loaded)
+		fmt.Println("Attempting to unload service...")
+		exec.Command("launchctl", "unload", plistPath).Run()
+
+		// Remove the plist file
+		if err := os.Remove(plistPath); err != nil {
+			fmt.Println(errorStyle.Render("✗ Failed to remove service file: " + err.Error()))
+			os.Exit(1)
+		}
+
+		fmt.Println(successStyle.Render("✓ Service file removed: " + plistPath))
+		fmt.Println(successStyle.Render("✓ NoteBridge has been uninstalled"))
+
+	case "linux":
+		// Linux: Remove systemd user service
+		servicePath := filepath.Join(home, ".config", "systemd", "user", "notebridge.service")
+
+		// Check if file exists
+		if _, err := os.Stat(servicePath); os.IsNotExist(err) {
+			fmt.Println(warningStyle.Render("⚠ Service file not found: " + servicePath))
+			fmt.Println("Nothing to uninstall.")
+			return
+		}
+
+		// Try to stop and disable the service first (ignore errors if not running)
+		fmt.Println("Attempting to stop and disable service...")
+		exec.Command("systemctl", "--user", "stop", "notebridge.service").Run()
+		exec.Command("systemctl", "--user", "disable", "notebridge.service").Run()
+
+		// Remove the service file
+		if err := os.Remove(servicePath); err != nil {
+			fmt.Println(errorStyle.Render("✗ Failed to remove service file: " + err.Error()))
+			os.Exit(1)
+		}
+
+		// Reload systemd
+		exec.Command("systemctl", "--user", "daemon-reload").Run()
+
+		fmt.Println(successStyle.Render("✓ Service file removed: " + servicePath))
+		fmt.Println(successStyle.Render("✓ NoteBridge has been uninstalled"))
 
 	default:
 		fmt.Println(errorStyle.Render("✗ Unsupported operating system: " + runtime.GOOS))
