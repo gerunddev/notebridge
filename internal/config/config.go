@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/adrg/xdg"
 )
 
 // Config represents the notebridge configuration
@@ -13,7 +15,6 @@ type Config struct {
 	OrgDir             string        `json:"org_dir"`
 	ObsidianDir        string        `json:"obsidian_dir"`
 	LogFile            string        `json:"log_file"`
-	StateFile          string        `json:"state_file"`
 	Interval           time.Duration `json:"-"` // Custom JSON handling below
 	ResolutionStrategy string        `json:"resolution_strategy,omitempty"`
 	ExcludePatterns    []string      `json:"exclude_patterns,omitempty"`
@@ -26,7 +27,6 @@ func DefaultConfig() *Config {
 		OrgDir:             filepath.Join(home, "org-roam"),
 		ObsidianDir:        filepath.Join(home, "Documents", "obsidian-vault"),
 		LogFile:            "/tmp/notebridge.log",
-		StateFile:          filepath.Join(home, ".config", "notebridge", "state.json"),
 		Interval:           30 * time.Second,
 		ResolutionStrategy: "last-write-wins", // Default strategy
 		ExcludePatterns:    []string{},        // No exclusions by default
@@ -36,11 +36,16 @@ func DefaultConfig() *Config {
 // ConfigPath returns the path to the config file
 // Can be overridden for testing
 var ConfigPath = func() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".config", "notebridge", "config.json")
+	return filepath.Join(xdg.ConfigHome, "notebridge", "config.json")
 }
 
-// Load reads configuration from ~/.config/notebridge/config.json
+// StateFilePath returns the path to the state file
+// Can be overridden for testing
+var StateFilePath = func() string {
+	return filepath.Join(xdg.DataHome, "notebridge", "state.json")
+}
+
+// Load reads configuration from the XDG config directory
 func Load() (*Config, error) {
 	configPath := ConfigPath()
 	data, err := os.ReadFile(configPath)
@@ -57,7 +62,6 @@ func Load() (*Config, error) {
 		OrgDir             string   `json:"org_dir"`
 		ObsidianDir        string   `json:"obsidian_dir"`
 		LogFile            string   `json:"log_file"`
-		StateFile          string   `json:"state_file"`
 		Interval           string   `json:"interval"`
 		ResolutionStrategy string   `json:"resolution_strategy"`
 		ExcludePatterns    []string `json:"exclude_patterns"`
@@ -89,7 +93,6 @@ func Load() (*Config, error) {
 		OrgDir:             raw.OrgDir,
 		ObsidianDir:        raw.ObsidianDir,
 		LogFile:            raw.LogFile,
-		StateFile:          raw.StateFile,
 		Interval:           interval,
 		ResolutionStrategy: resolutionStrategy,
 		ExcludePatterns:    excludePatterns,
@@ -108,7 +111,7 @@ func Load() (*Config, error) {
 	return cfg, nil
 }
 
-// Save writes configuration to ~/.config/notebridge/config.json
+// Save writes configuration to the XDG config directory
 func (c *Config) Save() error {
 	configPath := ConfigPath()
 	configDir := filepath.Dir(configPath)
@@ -122,7 +125,6 @@ func (c *Config) Save() error {
 		OrgDir             string   `json:"org_dir"`
 		ObsidianDir        string   `json:"obsidian_dir"`
 		LogFile            string   `json:"log_file"`
-		StateFile          string   `json:"state_file"`
 		Interval           string   `json:"interval"`
 		ResolutionStrategy string   `json:"resolution_strategy,omitempty"`
 		ExcludePatterns    []string `json:"exclude_patterns,omitempty"`
@@ -130,7 +132,6 @@ func (c *Config) Save() error {
 		OrgDir:             c.OrgDir,
 		ObsidianDir:        c.ObsidianDir,
 		LogFile:            c.LogFile,
-		StateFile:          c.StateFile,
 		Interval:           c.Interval.String(),
 		ResolutionStrategy: c.ResolutionStrategy,
 		ExcludePatterns:    c.ExcludePatterns,
@@ -158,9 +159,6 @@ func (c *Config) Validate() error {
 	}
 	if c.LogFile == "" {
 		return fmt.Errorf("log_file cannot be empty")
-	}
-	if c.StateFile == "" {
-		return fmt.Errorf("state_file cannot be empty")
 	}
 	if c.Interval <= 0 {
 		return fmt.Errorf("interval must be positive")
@@ -196,11 +194,6 @@ func (c *Config) ExpandPaths() error {
 	c.LogFile, err = expandPath(c.LogFile)
 	if err != nil {
 		return fmt.Errorf("failed to expand log_file: %w", err)
-	}
-
-	c.StateFile, err = expandPath(c.StateFile)
-	if err != nil {
-		return fmt.Errorf("failed to expand state_file: %w", err)
 	}
 
 	return nil

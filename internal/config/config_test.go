@@ -19,9 +19,6 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.LogFile == "" {
 		t.Error("Expected LogFile to be set")
 	}
-	if cfg.StateFile == "" {
-		t.Error("Expected StateFile to be set")
-	}
 	if cfg.Interval != 30*time.Second {
 		t.Errorf("Expected Interval to be 30s, got %v", cfg.Interval)
 	}
@@ -44,7 +41,6 @@ func TestConfigValidate(t *testing.T) {
 				OrgDir:      "",
 				ObsidianDir: "/path/to/obsidian",
 				LogFile:     "/tmp/test.log",
-				StateFile:   "/tmp/state.json",
 				Interval:    30 * time.Second,
 			},
 			wantErr: true,
@@ -55,7 +51,6 @@ func TestConfigValidate(t *testing.T) {
 				OrgDir:      "/path/to/org",
 				ObsidianDir: "",
 				LogFile:     "/tmp/test.log",
-				StateFile:   "/tmp/state.json",
 				Interval:    30 * time.Second,
 			},
 			wantErr: true,
@@ -66,7 +61,6 @@ func TestConfigValidate(t *testing.T) {
 				OrgDir:      "/path/to/org",
 				ObsidianDir: "/path/to/obsidian",
 				LogFile:     "/tmp/test.log",
-				StateFile:   "/tmp/state.json",
 				Interval:    0,
 			},
 			wantErr: true,
@@ -77,7 +71,6 @@ func TestConfigValidate(t *testing.T) {
 				OrgDir:      "/path/to/org",
 				ObsidianDir: "/path/to/obsidian",
 				LogFile:     "/tmp/test.log",
-				StateFile:   "/tmp/state.json",
 				Interval:    -5 * time.Second,
 			},
 			wantErr: true,
@@ -113,7 +106,6 @@ func TestSaveAndLoad(t *testing.T) {
 		OrgDir:      "/test/org-roam",
 		ObsidianDir: "/test/obsidian",
 		LogFile:     "/tmp/notebridge-test.log",
-		StateFile:   "/tmp/state-test.json",
 		Interval:    45 * time.Second,
 	}
 
@@ -229,7 +221,6 @@ func TestConfigPathsExpanded(t *testing.T) {
 		OrgDir:      "~/org-roam",
 		ObsidianDir: "~/Documents/obsidian",
 		LogFile:     "~/notebridge.log",
-		StateFile:   "~/.config/notebridge/state.json",
 		Interval:    30 * time.Second,
 	}
 
@@ -252,8 +243,5 @@ func TestConfigPathsExpanded(t *testing.T) {
 	}
 	if loadedCfg.LogFile[0] == '~' {
 		t.Error("LogFile was not expanded")
-	}
-	if loadedCfg.StateFile[0] == '~' {
-		t.Error("StateFile was not expanded")
 	}
 }

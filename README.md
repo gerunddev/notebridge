@@ -144,14 +144,21 @@ Automatically handles cleanup:
 
 ## Configuration
 
-**Location**: `~/.config/notebridge/config.json`
+**Config Location**:
+- Linux: `~/.config/notebridge/config.json` (or `$XDG_CONFIG_HOME/notebridge/config.json`)
+- macOS: `~/Library/Application Support/notebridge/config.json`
+
+**State Location**:
+- Linux: `~/.local/share/notebridge/state.json` (or `$XDG_DATA_HOME/notebridge/state.json`)
+- macOS: `~/Library/Application Support/notebridge/state.json`
+
+Both paths respect XDG environment variables if set.
 
 ```json
 {
   "org_dir": "/path/to/org-roam",
   "obsidian_dir": "/path/to/obsidian/vault",
   "log_file": "/tmp/notebridge.log",
-  "state_file": "~/.config/notebridge/state.json",
   "interval": "30s",
   "resolution_strategy": "last-write-wins",
   "exclude_patterns": ["*.tmp", "drafts/*"]
@@ -162,7 +169,6 @@ Automatically handles cleanup:
 - `org_dir`: Path to org-roam directory
 - `obsidian_dir`: Path to Obsidian vault directory
 - `log_file`: Path to log file (default: `/tmp/notebridge.log`)
-- `state_file`: Path to state file (default: `~/.config/notebridge/state.json`)
 - `interval`: Sync interval for daemon mode (e.g., "30s", "1m", "5m")
 - `resolution_strategy`: Conflict resolution strategy (optional, default: "last-write-wins")
   - `last-write-wins`: Use the file with newer modification time

@@ -209,7 +209,7 @@ func handleDaemon(args []string) {
 	}
 
 	// Load state
-	st, err := state.Load(cfg.StateFile)
+	st, err := state.Load(config.StateFilePath())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error loading state: %v\n", err)
 		os.Exit(1)
@@ -268,7 +268,7 @@ func handleDaemon(args []string) {
 		}
 
 		// Save state after initial sync
-		if err := st.Save(cfg.StateFile); err != nil {
+		if err := st.Save(config.StateFilePath()); err != nil {
 			log.Error("failed to save state", "error", err)
 		}
 
@@ -287,14 +287,14 @@ func handleDaemon(args []string) {
 					"errors", len(result.Errors))
 
 				// Save state after each sync
-				if err := st.Save(cfg.StateFile); err != nil {
+				if err := st.Save(config.StateFilePath()); err != nil {
 					log.Error("failed to save state", "error", err)
 				}
 
 			case <-stopChan:
 				log.Info("sync loop stopping")
 				// Save final state
-				if err := st.Save(cfg.StateFile); err != nil {
+				if err := st.Save(config.StateFilePath()); err != nil {
 					log.Error("failed to save state on shutdown", "error", err)
 				}
 				return
@@ -391,7 +391,7 @@ func handleSync(args []string) {
 	}
 
 	// Load state
-	st, err := state.Load(cfg.StateFile)
+	st, err := state.Load(config.StateFilePath())
 	if err != nil {
 		fmt.Println(errorStyle.Render("✗ Error loading state: " + err.Error()))
 		os.Exit(1)
@@ -449,7 +449,7 @@ func handleSync(args []string) {
 	}
 
 	// Save state
-	if err := st.Save(cfg.StateFile); err != nil {
+	if err := st.Save(config.StateFilePath()); err != nil {
 		fmt.Println(errorStyle.Render("✗ Error saving state: " + err.Error()))
 		os.Exit(1)
 	}
@@ -466,7 +466,7 @@ func handleStatus() {
 	}
 
 	// Load state
-	st, err := state.Load(cfg.StateFile)
+	st, err := state.Load(config.StateFilePath())
 	if err != nil {
 		fmt.Println(errorStyle.Render("✗ Error loading state: " + err.Error()))
 		os.Exit(1)
@@ -480,7 +480,7 @@ func handleStatus() {
 		err := syncer.SyncFileWithResolution(orgPath, mdPath, direction)
 		if err == nil {
 			// Save state after successful resolution
-			if saveErr := st.Save(cfg.StateFile); saveErr != nil {
+			if saveErr := st.Save(config.StateFilePath()); saveErr != nil {
 				return fmt.Errorf("sync succeeded but failed to save state: %w", saveErr)
 			}
 		}
@@ -493,7 +493,7 @@ func handleStatus() {
 	// Function to gather and send status data
 	sendStatusData := func() {
 		// Reload state to get latest changes
-		st, err := state.Load(cfg.StateFile)
+		st, err := state.Load(config.StateFilePath())
 		if err != nil {
 			p.Send(tui.StatusMsg{
 				Data: nil,
@@ -601,7 +601,7 @@ func handleBrowse() {
 	}
 
 	// Load state
-	st, err := state.Load(cfg.StateFile)
+	st, err := state.Load(config.StateFilePath())
 	if err != nil {
 		fmt.Println(errorStyle.Render("✗ Error loading state: " + err.Error()))
 		os.Exit(1)
@@ -615,7 +615,7 @@ func handleBrowse() {
 		err := syncer.SyncFileWithResolution(orgPath, mdPath, direction)
 		if err == nil {
 			// Save state after successful resolution
-			if saveErr := st.Save(cfg.StateFile); saveErr != nil {
+			if saveErr := st.Save(config.StateFilePath()); saveErr != nil {
 				return fmt.Errorf("sync succeeded but failed to save state: %w", saveErr)
 			}
 		}
@@ -628,7 +628,7 @@ func handleBrowse() {
 	// Function to gather and send browse data
 	sendBrowseData := func() {
 		// Reload state to get latest changes
-		st, err := state.Load(cfg.StateFile)
+		st, err := state.Load(config.StateFilePath())
 		if err != nil {
 			p.Send(tui.BrowseMsg{
 				Data: nil,
