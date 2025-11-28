@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/gerunddev/notebridge/internal/styles"
 )
 
 // BrowseData holds all tracked files and their status
@@ -79,19 +80,19 @@ func InitBrowseModel(orgDir, obsidianDir string, resolveFunc func(string, string
 	ts := table.DefaultStyles()
 	ts.Header = ts.Header.
 		BorderStyle(lipgloss.NormalBorder()).
-		BorderForeground(lipgloss.Color("240")).
+		BorderForeground(lipgloss.Color(styles.Border)).
 		BorderBottom(true).
 		Bold(false)
 	ts.Selected = ts.Selected.
-		Foreground(lipgloss.Color("229")).
-		Background(lipgloss.Color("57")).
+		Foreground(lipgloss.Color(styles.Background)).
+		Background(lipgloss.Color(styles.Yellow)).
 		Bold(false)
 	t.SetStyles(ts)
 
 	vp := viewport.New(100, 20)
 	vp.Style = lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("240")).
+		BorderForeground(lipgloss.Color(styles.Border)).
 		Padding(1)
 
 	return browseModel{

@@ -6,15 +6,15 @@ import (
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"github.com/gerunddev/notebridge/internal/styles"
 )
 
 var (
-	spinnerStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
-	helpStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
-	successStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
-	errorStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
-	highlightStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("212")).Bold(true)
+	spinnerStyle   = styles.SpinnerStyle
+	helpStyle      = styles.HelpStyle
+	successStyle   = styles.SuccessStyle
+	errorStyle     = styles.ErrorStyle
+	highlightStyle = styles.HighlightStyle
 )
 
 // SyncResult holds the result of a sync operation

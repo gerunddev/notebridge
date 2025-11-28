@@ -10,22 +10,16 @@ import (
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/gerunddev/notebridge/internal/styles"
 )
 
 var (
-	titleStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("212"))
-
-	labelStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("241"))
-
-	valueStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("255"))
-
+	titleStyle = styles.TitleStyle
+	labelStyle = styles.DimStyle
+	valueStyle = styles.NormalTextStyle
 	tableStyle = lipgloss.NewStyle().
 			BorderStyle(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("240"))
+			BorderForeground(lipgloss.Color(styles.Border))
 )
 
 // StatusData holds all the information for the status display
@@ -117,12 +111,12 @@ func InitStatusModel(orgDir, obsidianDir string, resolveFunc func(string, string
 	ts := table.DefaultStyles()
 	ts.Header = ts.Header.
 		BorderStyle(lipgloss.NormalBorder()).
-		BorderForeground(lipgloss.Color("240")).
+		BorderForeground(lipgloss.Color(styles.Border)).
 		BorderBottom(true).
 		Bold(false)
 	ts.Selected = ts.Selected.
-		Foreground(lipgloss.Color("229")).
-		Background(lipgloss.Color("57")).
+		Foreground(lipgloss.Color(styles.Background)).
+		Background(lipgloss.Color(styles.Yellow)).
 		Bold(false)
 	t.SetStyles(ts)
 

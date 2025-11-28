@@ -10,11 +10,11 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/gerunddev/notebridge/internal/config"
 	"github.com/gerunddev/notebridge/internal/daemon"
 	"github.com/gerunddev/notebridge/internal/logger"
 	"github.com/gerunddev/notebridge/internal/state"
+	"github.com/gerunddev/notebridge/internal/styles"
 	"github.com/gerunddev/notebridge/internal/sync"
 	"github.com/gerunddev/notebridge/internal/tui"
 )
@@ -99,9 +99,9 @@ For more information, visit: https://github.com/gerunddev/notebridge
 }
 
 func handleStart(args []string) {
-	successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
-	errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
-	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
+	successStyle := styles.SuccessStyle
+	errorStyle := styles.ErrorStyle
+	dimStyle := styles.DimStyle
 
 	// Check if already running
 	running, pid, _ := daemon.IsRunning()
@@ -146,9 +146,9 @@ func handleStart(args []string) {
 }
 
 func handleStop() {
-	successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
-	errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
-	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
+	successStyle := styles.SuccessStyle
+	errorStyle := styles.ErrorStyle
+	dimStyle := styles.DimStyle
 
 	// Check if running
 	running, pid, _ := daemon.IsRunning()
@@ -353,8 +353,7 @@ func handleDaemon(args []string) {
 
 	// Run the TUI program
 	if _, err := p.Run(); err != nil {
-		errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
-		fmt.Println(errorStyle.Render("✗ Error: " + err.Error()))
+		fmt.Println(styles.ErrorStyle.Render("✗ Error: " + err.Error()))
 		stopChan <- true
 		<-doneChan // Wait for sync loop to finish
 		os.Exit(1)
@@ -367,9 +366,9 @@ func handleDaemon(args []string) {
 }
 
 func handleSync(args []string) {
-	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("212"))
-	errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
-	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
+	titleStyle := styles.TitleStyle
+	errorStyle := styles.ErrorStyle
+	dimStyle := styles.DimStyle
 
 	// Parse --dry-run flag
 	dryRun := false
@@ -460,7 +459,7 @@ func handleSync(args []string) {
 }
 
 func handleStatus() {
-	errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
+	errorStyle := styles.ErrorStyle
 
 	// Load configuration
 	cfg, err := config.Load()
@@ -595,7 +594,7 @@ func handleStatus() {
 }
 
 func handleBrowse() {
-	errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
+	errorStyle := styles.ErrorStyle
 
 	// Load configuration
 	cfg, err := config.Load()
@@ -741,7 +740,7 @@ func handleBrowse() {
 }
 
 func handleDashboard() {
-	errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
+	errorStyle := styles.ErrorStyle
 
 	// Load configuration
 	cfg, err := config.Load()
@@ -848,10 +847,10 @@ func parseLogFile(logPath string, maxLines int) ([]string, time.Time, int) {
 
 // handleInstall generates system service files for daemon auto-start
 func handleInstall() {
-	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("212"))
-	successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("46"))
-	errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
-	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
+	titleStyle := styles.TitleStyle
+	successStyle := styles.SuccessStyle
+	errorStyle := styles.ErrorStyle
+	dimStyle := styles.DimStyle
 
 	fmt.Println(titleStyle.Render("NoteBridge Install"))
 	fmt.Println()
@@ -965,10 +964,10 @@ WantedBy=default.target`, execPath)
 
 // handleUninstall removes system service files
 func handleUninstall() {
-	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("212"))
-	successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("46"))
-	errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
-	warningStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
+	titleStyle := styles.TitleStyle
+	successStyle := styles.SuccessStyle
+	errorStyle := styles.ErrorStyle
+	warningStyle := styles.WarningStyle
 
 	fmt.Println(titleStyle.Render("NoteBridge Uninstall"))
 	fmt.Println()
