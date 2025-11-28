@@ -277,7 +277,6 @@ ID-to-filename mapping maintained in state file.
 
 Preserved as comments when converting:
 - Obsidian block references (`^block-id`)
-- Obsidian callouts (`> [!NOTE]`)
 - Org clock entries (`CLOCK:`)
 
 ## Logging
