@@ -36,6 +36,26 @@ func Generate(orgPath, mdPath string, st *state.State, format Format) (string, e
 	}
 }
 
+// DefaultFormat determines the default diff format based on sync direction
+// Uses the destination format: org→md shows markdown, md→org shows org
+func DefaultFormat(orgPath, mdPath string) (Format, error) {
+	orgInfo, err := os.Stat(orgPath)
+	if err != nil {
+		return FormatMarkdown, fmt.Errorf("failed to stat org file: %w", err)
+	}
+	mdInfo, err := os.Stat(mdPath)
+	if err != nil {
+		return FormatMarkdown, fmt.Errorf("failed to stat md file: %w", err)
+	}
+
+	// If org is newer, sync is org→md, so show markdown format
+	// If md is newer, sync is md→org, so show org format
+	if orgInfo.ModTime().After(mdInfo.ModTime()) {
+		return FormatMarkdown, nil
+	}
+	return FormatOrg, nil
+}
+
 // generateMarkdown converts both files to markdown and diffs them
 func generateMarkdown(orgPath, mdPath string, st *state.State) (string, error) {
 	// Read the org file
@@ -105,7 +125,69 @@ func generateMarkdown(orgPath, mdPath string, st *state.State) (string, error) {
 }
 
 // generateOrg converts both files to org and diffs them
-// TODO: This will be implemented when org-mode diff rendering is added
 func generateOrg(orgPath, mdPath string, st *state.State) (string, error) {
-	return "", fmt.Errorf("org-mode diff format not yet implemented - will be added as a configurable option")
+	// Read the org file
+	orgContent, err := os.ReadFile(orgPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read org file: %w", err)
+	}
+
+	// Read the markdown file
+	mdContent, err := os.ReadFile(mdPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read markdown file: %w", err)
+	}
+
+	// Convert markdown to org for comparison
+	mdAsOrg, err := convert.MarkdownToOrg(string(mdContent), st.IDMap)
+	if err != nil {
+		return "", fmt.Errorf("failed to convert markdown to org: %w", err)
+	}
+
+	// Determine which file is newer to show diff in correct direction
+	orgInfo, err := os.Stat(orgPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to stat org file: %w", err)
+	}
+	mdInfo, err := os.Stat(mdPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to stat md file: %w", err)
+	}
+
+	// Generate unified diff with newer file as "new" side
+	orgFileName := filepath.Base(orgPath)
+	mdFileName := filepath.Base(mdPath)
+
+	var unified string
+
+	if orgInfo.ModTime().After(mdInfo.ModTime()) {
+		// Org is newer: show md → org (md is old, org is new)
+		edits := myers.ComputeEdits(span.URIFromPath(mdFileName), mdAsOrg, string(orgContent))
+		unified = fmt.Sprint(gotextdiff.ToUnified(mdFileName, orgFileName, mdAsOrg, edits))
+	} else {
+		// Md is newer: show org → md (org is old, md is new)
+		edits := myers.ComputeEdits(span.URIFromPath(orgFileName), string(orgContent), mdAsOrg)
+		unified = fmt.Sprint(gotextdiff.ToUnified(orgFileName, mdFileName, string(orgContent), edits))
+	}
+
+	// Wrap in diff code fence for proper syntax highlighting (+ in green, - in red)
+	diffOrg := fmt.Sprintf("```diff\n%s```\n", unified)
+
+	// Render with Glamour
+	renderer, err := glamour.NewTermRenderer(
+		glamour.WithAutoStyle(),
+		glamour.WithWordWrap(120),
+	)
+	if err != nil {
+		// Fallback to plain diff if glamour fails
+		return diffOrg, nil
+	}
+
+	rendered, err := renderer.Render(diffOrg)
+	if err != nil {
+		// Fallback to plain diff if rendering fails
+		return diffOrg, nil
+	}
+
+	return rendered, nil
 }

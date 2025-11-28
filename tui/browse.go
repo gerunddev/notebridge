@@ -39,6 +39,7 @@ type BrowseMsg struct {
 // DiffMsg is sent when diff preview is ready
 type DiffMsg struct {
 	Content string
+	Format  diff.Format
 	Err     error
 }
 
@@ -54,6 +55,7 @@ type browseModel struct {
 	showingDiff   bool
 	showingPrompt bool
 	diffContent   string
+	diffFormat    diff.Format
 	width         int
 	height        int
 	selectedFile  *FileInfo
@@ -158,7 +160,7 @@ func (m browseModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			case "r":
 				// Show resolution prompt
-				if m.selectedFile != nil && (m.selectedFile.Status == "conflict" || m.selectedFile.Status == "org pending" || m.selectedFile.Status == "md pending") {
+				if m.selectedFile != nil && (m.selectedFile.Status == "conflict" || m.selectedFile.Status == "org → md" || m.selectedFile.Status == "md → org") {
 					m.showingPrompt = true
 				}
 				return m, nil
@@ -227,6 +229,7 @@ func (m browseModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case DiffMsg:
 		m.diffContent = msg.Content
+		m.diffFormat = msg.Format
 		m.viewport.SetContent(m.diffContent)
 		m.viewport.GotoTop()
 		return m, nil
@@ -279,7 +282,7 @@ func (m browseModel) View() string {
 		b.WriteString(m.viewport.View())
 		b.WriteString("\n\n")
 		// Show resolve option if file needs resolution
-		if m.selectedFile != nil && (m.selectedFile.Status == "conflict" || m.selectedFile.Status == "org pending" || m.selectedFile.Status == "md pending") {
+		if m.selectedFile != nil && (m.selectedFile.Status == "conflict" || m.selectedFile.Status == "org → md" || m.selectedFile.Status == "md → org") {
 			b.WriteString(helpStyle.Render("↑/k up • ↓/j down • r resolve • esc/q back"))
 		} else {
 			b.WriteString(helpStyle.Render("↑/k up • ↓/j down • esc/q back"))
@@ -299,6 +302,7 @@ func (m browseModel) View() string {
 }
 
 // loadDiff creates a command that loads the diff for the selected file
+// Automatically determines format based on sync direction (destination format)
 func (m browseModel) loadDiff() tea.Cmd {
 	return func() tea.Msg {
 		if m.selectedFile == nil {
@@ -312,18 +316,26 @@ func (m browseModel) loadDiff() tea.Cmd {
 		orgPath := filepath.Join(m.orgDir, m.selectedFile.OrgPath)
 		mdPath := filepath.Join(m.obsidianDir, m.selectedFile.MdPath)
 
-		// Generate diff (currently only markdown format)
-		// Future: This will be configurable to support org format too
-		diffContent, err := diff.Generate(orgPath, mdPath, m.state, diff.FormatMarkdown)
+		// Determine format based on sync direction (destination format)
+		format, err := diff.DefaultFormat(orgPath, mdPath)
+		if err != nil {
+			// Fallback to markdown on error
+			format = diff.FormatMarkdown
+		}
+
+		// Generate diff with destination format
+		diffContent, err := diff.Generate(orgPath, mdPath, m.state, format)
 		if err != nil {
 			return DiffMsg{
 				Content: fmt.Sprintf("Error generating diff: %s", err.Error()),
+				Format:  format,
 				Err:     err,
 			}
 		}
 
 		return DiffMsg{
 			Content: diffContent,
+			Format:  format,
 			Err:     nil,
 		}
 	}

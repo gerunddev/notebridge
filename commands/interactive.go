@@ -350,10 +350,10 @@ func Browse() {
 					statusIcon = "⚠"
 				} else if orgChanged {
 					status = "org → md"
-					statusIcon = "→"
+					statusIcon = "✗"
 				} else if mdChanged {
 					status = "md → org"
-					statusIcon = "←"
+					statusIcon = "✗"
 				} else {
 					status = "synced"
 					statusIcon = "✓"
