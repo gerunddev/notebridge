@@ -60,7 +60,7 @@ func main() {
 }
 
 func printUsage() {
-	usage := `notebridge - Bidirectional sync between org-roam and Obsidian
+	usage := fmt.Sprintf(`notebridge - Bidirectional sync between org-roam and Obsidian
 
 Usage:
   notebridge <command> [options]
@@ -90,11 +90,11 @@ Examples:
   notebridge uninstall
 
 Configuration:
-  Config file: ~/.config/notebridge/config.json
-  State file:  ~/.config/notebridge/state.json
+  Config file: %s
+  State file:  %s
 
 For more information, visit: https://github.com/gerunddev/notebridge
-`
+`, config.ConfigPath(), config.StateFilePath())
 	fmt.Print(usage)
 }
 

@@ -34,12 +34,19 @@ func DefaultConfig() *Config {
 }
 
 // ConfigPath returns the path to the config file
+// Uses ~/.config on all platforms for consistency
 // Can be overridden for testing
 var ConfigPath = func() string {
-	return filepath.Join(xdg.ConfigHome, "notebridge", "config.json")
+	home, err := os.UserHomeDir()
+	if err != nil {
+		// Fallback to XDG if home dir unavailable
+		return filepath.Join(xdg.ConfigHome, "notebridge", "config.json")
+	}
+	return filepath.Join(home, ".config", "notebridge", "config.json")
 }
 
 // StateFilePath returns the path to the state file
+// Uses platform-specific XDG data directory
 // Can be overridden for testing
 var StateFilePath = func() string {
 	return filepath.Join(xdg.DataHome, "notebridge", "state.json")

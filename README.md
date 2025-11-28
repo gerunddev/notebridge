@@ -138,15 +138,14 @@ Automatically handles cleanup:
 
 ## Configuration
 
-**Config Location**:
-- Linux: `~/.config/notebridge/config.json` (or `$XDG_CONFIG_HOME/notebridge/config.json`)
-- macOS: `~/Library/Application Support/notebridge/config.json`
+**Config Location** (consistent across all platforms):
+- `~/.config/notebridge/config.json`
 
-**State Location**:
+**State Location** (platform-specific):
 - Linux: `~/.local/share/notebridge/state.json` (or `$XDG_DATA_HOME/notebridge/state.json`)
 - macOS: `~/Library/Application Support/notebridge/state.json`
 
-Both paths respect XDG environment variables if set.
+The state file location respects XDG environment variables if set.
 
 ```json
 {
