@@ -28,6 +28,11 @@ This installs the binary to `$GOPATH/bin` (typically `~/go/bin`). Make sure this
 export PATH="$PATH:$(go env GOPATH)/bin"
 ```
 
+```fish
+# Add to your ~/.config/fish/config.fish
+fish_add_path (go env GOPATH)/bin
+```
+
 ### Build from Source
 
 ```bash
